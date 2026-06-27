@@ -228,7 +228,7 @@ const DESCRICOES_ESPECIALIDADES: Record<string, { nomeExibicao: string; descrica
   },
   "Linguagem Infantil": {
     nomeExibicao: "Linguagem e Aprendizado Infantil",
-    descricao: "Tratamento fonoaudiológico para atrasos de fala, leitura e escrita em crianças.",
+    descricao: "Tratamento fonoaudiológico para atrasos de fala, leitura e escrita in crianças.",
     categoria: "Equipe Multiprofissional"
   },
   "Desenvolvimento Infantil": {
@@ -243,8 +243,9 @@ const DESCRICOES_ESPECIALIDADES: Record<string, { nomeExibicao: string; descrica
   }
 };
 
-// Mapeamento e descrições de Exames Clínicos e Diagnósticos (R012)
+// Mapeamento e descrições de Exames Clínicos, Diagnósticos e Procedimentos (R012)
 const EXAMES_SUGERIDOS: Record<string, { nome: string; categoria: string; desc: string }> = {
+  // --- Exames Laboratoriais ---
   "Hemograma Completo": { nome: "Hemograma Completo", categoria: "Exames Laboratoriais", desc: "Avaliação de glóbulos vermelhos, brancos e plaquetas do sangue para triagem de anemia e infecções." },
   "Glicemia de Jejum": { nome: "Glicemia de Jejum", categoria: "Exames Laboratoriais", desc: "Medição da glicose sanguínea em jejum para triagem e controle de diabetes." },
   "Hemoglobina Glicada (HbA1c)": { nome: "Hemoglobina Glicada (HbA1c)", categoria: "Exames Laboratoriais", desc: "Média do controle glicêmico no sangue referente aos últimos 90 dias." },
@@ -254,53 +255,85 @@ const EXAMES_SUGERIDOS: Record<string, { nome: string; categoria: string; desc: 
   "TSH e T4 Livre": { nome: "TSH e T4 Livre", categoria: "Exames Laboratoriais", desc: "Dosagem hormonal para acompanhamento da tireoide." },
   "Vitamina D e B12": { nome: "Vitamina D e B12", categoria: "Exames Laboratoriais", desc: "Níveis vitamínicos no sangue para suporte imunológico e nervoso." },
 
+  // --- Exames de Urina ---
   "Urina Tipo I (EAS)": { nome: "Urina Tipo I (EAS)", categoria: "Exames de Urina", desc: "Análise física e química da urina para detectar infecções ou problemas renais." },
   "Urocultura com Antibiograma": { nome: "Urocultura com Antibiograma", categoria: "Exames de Urina", desc: "Cultura biológica para identificar bactérias causadoras de infecção urinária." },
 
+  // --- Exames de Fezes ---
   "Parasitológico de Fezes": { nome: "Parasitológico de Fezes (EPF)", categoria: "Exames de Fezes", desc: "Pesquisa de vermes e parasitas intestinais nas fezes." },
   "Pesquisa de Sangue Oculto": { nome: "Pesquisa de Sangue Oculto nas Fezes", categoria: "Exames de Fezes", desc: "Triagem preventiva para sangramentos internos no trato digestório." },
 
+  // --- Testes Rápidos ---
   "Teste Rápido HIV": { nome: "Teste Rápido HIV", categoria: "Testes Rápidos", desc: "Exame rápido e sigiloso de sangue para triagem de infecção por HIV." },
   "Teste Rápido Sífilis": { nome: "Teste Rápido Sífilis", categoria: "Testes Rápidos", desc: "Diagnóstico rápido da infecção por sífilis via punção digital." },
   "Teste Rápido Hepatites (B e C)": { nome: "Teste Rápido Hepatite B e C", categoria: "Testes Rápidos", desc: "Detecção rápida de anticorpos ou antígenos para hepatites virais." },
   "Teste Rápido COVID-19": { nome: "Teste Rápido COVID-19 / Dengue", categoria: "Testes Rápidos", desc: "Triagem rápida de antígenos para infecção ativa por vírus respiratórios ou dengue." },
 
+  // --- Cardiologia ---
   "Eletrocardiograma (ECG)": { nome: "Eletrocardiograma (ECG)", categoria: "Cardiologia", desc: "Avaliação rápida do ritmo cardíaco e condução elétrica do coração." },
   "Holter 24h": { nome: "Holter 24h", categoria: "Cardiologia", desc: "Registro contínuo do eletrocardiograma durante as atividades diárias por 24 horas." },
   "MAPA 24h": { nome: "Monitoramento de Pressão (MAPA)", categoria: "Cardiologia", desc: "Monitorização automática da pressão arterial ao longo de 24 horas." },
 
+  // --- Pneumologia ---
   "Espirometria": { nome: "Espirometria (Sopro)", categoria: "Pneumologia", desc: "Medição de volumes de ar soprados para triagem de asma ou bronquite crônica." },
 
+  // --- Radiologia ---
   "Raio-X de Tórax": { nome: "Raio-X de Tórax", categoria: "Radiologia", desc: "Exame de imagem dos pulmões, costelas e silhueta cardíaca." },
   "Raio-X de Coluna": { nome: "Raio-X de Coluna", categoria: "Radiologia", desc: "Avaliação das vértebras da coluna cervical, torácica ou lombar." },
   "Raio-X de Extremidades": { nome: "Raio-X de Articulações (Mão/Pé/Joelho)", categoria: "Radiologia", desc: "Avaliação de ossos e articulações periféricas." },
 
+  // --- Ultrassonografia ---
   "Ultrassom de Abdome Total": { nome: "Ultrassom de Abdome Total", categoria: "Ultrassonografia", desc: "Visualização por imagem dos órgãos da cavidade abdominal." },
   "Ultrassom Transvaginal": { nome: "Ultrassom Transvaginal", categoria: "Ultrassonografia", desc: "Exame ginecológico interno para saúde reprodutiva, útero e ovários." },
   "Ultrassom Obstétrico": { nome: "Ultrassom Obstétrico (Gestante)", categoria: "Ultrassonografia", desc: "Exame de ultrassom gestacional para acompanhamento de desenvolvimento fetal." },
   "Ultrassom de Mamas": { nome: "Ultrassom de Mamas", categoria: "Ultrassonografia", desc: "Avaliação de nódulos ou cistos nas mamas." },
   "Ultrassom de Tireoide": { nome: "Ultrassom de Tireoide", categoria: "Ultrassonografia", desc: "Visualização anatômica por imagem de nódulos na tireoide." },
 
+  // --- Oftalmologia ---
   "Acuidade Visual": { nome: "Acuidade Visual (Tabela)", categoria: "Oftalmologia", desc: "Teste de leitura de letras em diferentes tamanhos para verificar foco e visão." },
 
+  // --- Otorrinolaringologia ---
   "Audiometria": { nome: "Audiometria", categoria: "Otorrinolaringologia", desc: "Avaliação auditiva em cabine acústica para medição dos limiares de audição." },
 
+  // --- Odontologia ---
   "Radiografia Panorâmica": { nome: "Radiografia Panorâmica Dentária", categoria: "Odontologia", desc: "Imagem panorâmica completa da arcada dentária para diagnóstico odontológico." },
 
+  // --- Saúde da Mulher ---
   "Preventivo (Papanicolau)": { nome: "Preventivo (Papanicolau)", categoria: "Saúde da Mulher", desc: "Coleta ginecológica preventiva periódica contra o câncer de colo de útero." },
   "Mamografia Bilateral": { nome: "Mamografia Bilateral de Rastreamento", categoria: "Saúde da Mulher", desc: "Exame de raio-x das mamas para rastreamento precoce do câncer de mama." },
 
+  // --- Saúde do Homem ---
   "PSA Total e Livre": { nome: "PSA (Antígeno Prostático)", categoria: "Saúde do Homem", desc: "Exame de sangue para avaliação preventiva da glândula da próstata." },
 
-  "Densitometria Óssea": { nome: "Densitometria Óssea", categoria: "Ortopedia", desc: "Avaliação por imagem da massa e minerais dos ossos contra osteoporose." },
+  // --- Ortopedia ---
+  "Densitometria Óssea": { nome: "Densitometria Óssea", categoria: "Ortopedia", desc: "Avaliação por imagem da masa e minerais dos ossos contra osteoporose." },
 
+  // --- Exames Neonatais ---
   "Teste do Pezinho": { nome: "Teste do Pezinho", categoria: "Exames Neonatais", desc: "Triagem metabólica em recém-nascidos feita nos primeiros dias de vida." },
-  "Teste da Orelhinha": { nome: "Teste da Orelhinha / Olhinho", categoria: "Exames Neonatais", desc: "Triagem auditiva e visual neonatal preventiva de cegueira ou surdez." }
+  "Teste da Orelhinha": { nome: "Teste da Orelhinha / Olhinho", categoria: "Exames Neonatais", desc: "Triagem auditiva e visual neonatal preventiva de cegueira ou surdez." },
+
+  // --- Procedimentos de Enfermagem e Ambulatoriais (Novo Módulo) ---
+  "Vacinação": { nome: "Vacinação", categoria: "Procedimentos", desc: "Aplicação de imunizantes e atualização da Caderneta de Vacinação." },
+  "Curativos": { nome: "Curativos", categoria: "Procedimentos", desc: "Tratamento, assepsia e higienização de feridas ou lesões crônicas." },
+  "Retirada de Pontos": { nome: "Retirada de Pontos", categoria: "Procedimentos", desc: "Retirada de suturas cirúrgicas pós-procedimentos ou alta médica." },
+  "Nebulização": { nome: "Nebulização (Inalação)", categoria: "Procedimentos", desc: "Administração de medicamentos inalatórios para vias aéreas." },
+  "Administração de Medicamentos": { nome: "Administração de Medicamentos", categoria: "Procedimentos", desc: "Aplicação de remédios injetáveis (intramuscular ou intravenoso) receitados." },
+  "Aferição de Pressão Arterial": { nome: "Aferição de Pressão Arterial", categoria: "Procedimentos", desc: "Medição da pressão arterial sistólica e diastólica." },
+  "Teste de Glicemia Capilar": { nome: "Teste de Glicemia Capilar", categoria: "Procedimentos", desc: "Pequena punção digital para medição imediata do nível de açúcar no sangue." },
+  "Coleta de Material para Exames": { nome: "Coleta de Material para Exames", categoria: "Procedimentos", desc: "Coletas biológicas gerais para envio laboratorial." },
+  "Lavagem de Ouvido": { nome: "Lavagem de Ouvido (Cerúmen)", categoria: "Procedimentos", desc: "Remoção de excesso de cera de ouvido com solução morna sob indicação médica." },
+  "Inserção de DIU": { nome: "Inserção de DIU", categoria: "Procedimentos", desc: "Procedimento médico para inserção de Dispositivo Intrauterino contraceptivo." },
+  "Retirada de DIU": { nome: "Retirada de DIU", categoria: "Procedimentos", desc: "Retirada do Dispositivo Intrauterino do útero." },
+  "Troca de Sonda": { nome: "Troca de Sonda Vesical/Alimentar", categoria: "Procedimentos", desc: "Substituição programada de cateteres vesicais de demora ou sondas alimentares." },
+  "Cateterismo Vesical": { nome: "Cateterismo Vesical (Alívio)", categoria: "Procedimentos", desc: "Esvaziamento da bexiga por meio de introdução de sonda estéril." },
+  "Oxigenoterapia": { nome: "Oxigenoterapia", categoria: "Procedimentos", desc: "Suplementação de oxigênio sob prescrição médica na unidade." },
+  "Pequenas Cirurgias Ambulatoriais": { nome: "Pequenas Cirurgias Ambulatoriais", desc: "Pequenos procedimentos cirúrgicos locais (ex: remoção de verrugas, cistos sebáceos).", categoria: "Procedimentos" }
 };
 
-// Categorias/Módulos de Exames para o R012 - Com a opção "Todos" adicionada
+// Categorias/Módulos de Exames e Procedimentos para o R012
 const CATEGORIAS_EXAMES = [
-  { id: "Todos", nome: "Todos os Exames", desc: "Visualização unificada de todo o catálogo.", icon: Users },
+  { id: "Todos", nome: "Todos os Serviços", desc: "Visualização unificada de todo o catálogo.", icon: Users },
+  { id: "Procedimentos", nome: "Procedimentos Clínicos", desc: "Vacinas, curativos, DIU, etc.", icon: Zap },
   { id: "Exames Laboratoriais", nome: "Laboratoriais (Sangue)", desc: "Hemograma, Glicose, Vitaminas.", icon: Activity },
   { id: "Exames de Urina", nome: "Exames de Urina", desc: "EAS, Urocultura.", icon: Info },
   { id: "Exames de Fezes", nome: "Exames de Fezes", desc: "Parasitológico, Sangue Oculto.", icon: Info },
@@ -322,12 +355,24 @@ const CATEGORIAS_PROFISSIONAIS = [
   { id: "Equipe Multiprofissional", nome: "Equipe Multiprofissional", desc: "Psicólogos, fisioterapeutas, assistentes sociais e outros.", icon: Users },
 ];
 
-// Função auxiliadora que resolve o profissional que realiza o exame de forma inteligente (R012)
+// Função auxiliadora que resolve o profissional que realiza o exame ou procedimento (R012)
 const mapearProfissionalParaExame = (exame: string, profissionaisDaUbs: Profissional[]): Profissional | null => {
   if (profissionaisDaUbs.length === 0) return null;
   
   const nomeExame = exame.toLowerCase();
   
+  // Trata procedimentos médicos específicos
+  if (nomeExame.includes("diu")) {
+    return profissionaisDaUbs.find(p => p.especialidade === "Ginecologia e Obstetrícia" || p.especialidade === "Acompanhamento Pré-Natal" || p.especialidade === "Consulta de Enfermagem") || profissionaisDaUbs[0];
+  }
+  if (nomeExame.includes("pequenas cirurgias")) {
+    return profissionaisDaUbs.find(p => p.especialidade === "Clínico Geral") || profissionaisDaUbs[0];
+  }
+  if (nomeExame.includes("lavagem de ouvido")) {
+    return profissionaisDaUbs.find(p => p.especialidade === "Clínico Geral" || p.especialidade === "Consulta de Enfermagem") || profissionaisDaUbs[0];
+  }
+  
+  // Trata exames e procedimentos cardiológicos
   if (nomeExame.includes("eletrocardiograma") || nomeExame.includes("cardio") || nomeExame.includes("mapa") || nomeExame.includes("holter")) {
     return profissionaisDaUbs.find(p => p.especialidade === "Cardiologia" || p.especialidade === "Clínico Geral") || profissionaisDaUbs[0];
   }
@@ -344,7 +389,7 @@ const mapearProfissionalParaExame = (exame: string, profissionaisDaUbs: Profissi
     return profissionaisDaUbs.find(p => p.especialidade.includes("Fala") || p.especialidade.includes("Linguagem")) || profissionaisDaUbs[0];
   }
   
-  // Para exames laboratoriais, testes rápidos, urina, fezes, vacinas -> Enfermagem
+  // Para procedimentos de enfermagem, vacinas, coletas, curativos, testes rápidos, nebulização, etc. -> Enfermagem
   return profissionaisDaUbs.find(p => p.especialidade === "Consulta de Enfermagem" || p.especialidade === "Imunização (Vacinação)" || p.especialidade === "Acompanhamento Pré-Natal")
     || profissionaisDaUbs.find(p => p.especialidade === "Clínico Geral")
     || profissionaisDaUbs[0];
@@ -361,7 +406,7 @@ export default function NovoAgendamentoPage() {
   // Estados de dados selecionados
   const [tipo, setTipo] = useState<TipoAgendamento>("consulta");
   const [ubs, setUbs] = useState<UBS | null>(null);
-  const [especialidade, setEspecialidade] = useState(""); // Guarda Especialidade de Consulta OU Nome do Exame concatenado
+  const [especialidade, setEspecialidade] = useState(""); // Guarda Especialidade de Consulta OU Nome do Exame/Procedimento
   const [profissional, setProfissional] = useState<Profissional | null>(null);
   const [dataSel, setDataSel] = useState(""); // YYYY-MM-DD
   const [horarioSel, setHorarioSel] = useState(""); // HH:MM
@@ -371,7 +416,7 @@ export default function NovoAgendamentoPage() {
   const [categoriaSel, setCategoriaSel] = useState<string>("Consultas Médicas");
   const [buscaEspecialidade, setBuscaEspecialidade] = useState("");
 
-  // Estados específicos para seleção de exames (R012) - Todos por default para mostrar todos
+  // Estados específicos para seleção de exames e procedimentos (R012)
   const [categoriaExameSel, setCategoriaExameSel] = useState<string>("Todos");
   const [buscaExame, setBuscaExame] = useState("");
   const [examesSelecionados, setExamesSelecionados] = useState<string[]>([]);
@@ -429,14 +474,13 @@ export default function NovoAgendamentoPage() {
     }
   }, [ubs, tipo]);
 
-  // Carrega os profissionais quando a especialidade ou o exame é selecionado (Reativo)
+  // Carrega os profissionais quando a especialidade ou o exame/procedimento é selecionado (Reativo)
   useEffect(() => {
     if (ubs && especialidade) {
       if (tipo === "exame") {
         profissionalRepository
           .listarPorUbs(ubs.id)
           .then((list) => {
-            // Divide o texto concatenado pelo join e resolve o primeiro exame
             const primeiroExame = especialidade.split(", ")[0];
             const resolvedProf = mapearProfissionalParaExame(primeiroExame, list);
             setProfissional(resolvedProf);
@@ -544,7 +588,7 @@ export default function NovoAgendamentoPage() {
         data: dataSel,
         horario: horarioSel,
         tipo,
-        especialidade, // Contém os nomes dos exames concatenados
+        especialidade, // Contém os nomes dos exames/procedimentos concatenados
         observacoes
       });
 
@@ -572,7 +616,7 @@ export default function NovoAgendamentoPage() {
     return bateCategoria && (bateNome || bateDesc);
   });
 
-  // Filtra os Exames Clínicos baseados na categoria de exame selecionada (ou Todos) e na busca (R012)
+  // Filtra os Exames/Procedimentos baseados na categoria de exame selecionada (ou Todos) e na busca (R012)
   const examesFiltrados = Object.keys(EXAMES_SUGERIDOS).filter(key => {
     const exame = EXAMES_SUGERIDOS[key];
     const bateCategoria = categoriaExameSel === "Todos" || exame.categoria === categoriaExameSel;
@@ -589,7 +633,7 @@ export default function NovoAgendamentoPage() {
   // Lista com todos os exames mapeados para fins de select na Etapa 3
   const todosExamesDisponiveisSelect = Object.keys(EXAMES_SUGERIDOS).map(key => EXAMES_SUGERIDOS[key].nome);
 
-  // Alterna a seleção de um exame (R012 múltiplo)
+  // Alterna a seleção de um exame/procedimento (R012 múltiplo)
   const toggleExame = (nomeExame: string) => {
     setExamesSelecionados(prev => {
       if (prev.includes(nomeExame)) {
@@ -600,10 +644,10 @@ export default function NovoAgendamentoPage() {
     });
   };
 
-  // Função para avançar a tela de seleção de exames múltiplos resolvendo o profissional qualificado
+  // Função para avançar a tela de seleção de exames/procedimentos múltiplos resolvendo o profissional qualificado
   const handleAvancarStep2Exame = () => {
     if (examesSelecionados.length === 0) {
-      toast.error("Por favor, selecione pelo menos um exame para agendar.");
+      toast.error("Por favor, selecione pelo menos um exame ou procedimento para agendar.");
       return;
     }
 
@@ -640,7 +684,7 @@ export default function NovoAgendamentoPage() {
               step === s ? "text-foreground" : "text-muted-foreground"
             }`}>
               {s === 1 && "Unidade & Tipo"}
-              {s === 2 && (tipo === "consulta" ? "Profissional" : "Exames")}
+              {s === 2 && (tipo === "consulta" ? "Profissional" : "Exames & Proc.")}
               {s === 3 && "Data & Hora"}
               {s === 4 && "Confirmação"}
             </span>
@@ -691,7 +735,7 @@ export default function NovoAgendamentoPage() {
                     }`}
                   >
                     <Activity className="h-6 w-6 mx-auto mb-2 text-primary" />
-                    <span>Exame Clínico</span>
+                    <span>Exames & Procedimentos</span>
                   </button>
                 </div>
               </div>
@@ -924,14 +968,14 @@ export default function NovoAgendamentoPage() {
             </div>
           )}
 
-          {/* ETAPA 2 (Exame): Múltipla Seleção de Exames e Categoria "Todos" (R012) */}
+          {/* ETAPA 2 (Exame/Procedimento): Múltipla Seleção de Exames/Procedimentos e Categoria "Todos" (R012) */}
           {step === 2 && tipo === "exame" && (
             <div className="space-y-6">
               
-              {/* Seleção de Categoria do Exame (incluindo "Todos os Exames") */}
+              {/* Seleção de Categoria do Exame/Procedimento (incluindo "Todos os Serviços") */}
               <div className="space-y-3">
                 <h3 className="font-heading font-bold text-sm text-foreground uppercase tracking-wide text-muted-foreground">
-                  Selecione a Categoria de Exame
+                  Selecione a Categoria de Exame ou Procedimento
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {CATEGORIAS_EXAMES.map((cat) => {
@@ -967,24 +1011,24 @@ export default function NovoAgendamentoPage() {
               {categoriaExameSel && (
                 <div className="space-y-4 pt-4 border-t border-border animate-in fade-in duration-200">
                   
-                  {/* Banner Verde Claro de Exames Selecionados (UX Fiel ao Protótipo) */}
+                  {/* Banner Verde Claro de Exames/Procedimentos Selecionados */}
                   {examesSelecionados.length > 0 && (
                     <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 text-xs font-bold flex items-center gap-2 border border-emerald-500/20 animate-in slide-in-from-top-2 duration-300">
                       <Check className="h-4 w-4 shrink-0" />
-                      <span>{examesSelecionados.length} {examesSelecionados.length === 1 ? "exame selecionado" : "exames selecionados"}</span>
+                      <span>{examesSelecionados.length} {examesSelecionados.length === 1 ? "serviço selecionado" : "serviços selecionados"}</span>
                     </div>
                   )}
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h3 className="font-heading font-bold text-lg text-foreground">
-                      Selecione um ou mais Exames
+                      Selecione um ou mais Serviços
                     </h3>
                     
-                    {/* Barra de Busca de Exames */}
+                    {/* Barra de Busca */}
                     <div className="relative w-full sm:w-64">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Buscar exames..."
+                        placeholder="Buscar exames ou procedimentos..."
                         value={buscaExame}
                         onChange={(e) => setBuscaExame(e.target.value)}
                         className="pl-9 h-9"
@@ -1025,9 +1069,9 @@ export default function NovoAgendamentoPage() {
                     <div className="p-5 rounded-2xl bg-muted/40 border text-center space-y-4">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Info className="h-8 w-8 text-primary" />
-                        <h4 className="font-bold text-sm text-foreground">Nenhum Exame Encontrado</h4>
+                        <h4 className="font-bold text-sm text-foreground">Nenhum Serviço Encontrado</h4>
                         <p className="text-xs max-w-sm leading-relaxed">
-                          Nenhum exame corresponde à sua pesquisa na categoria selecionada.
+                          Nenhum exame ou procedimento corresponde à sua pesquisa na categoria selecionada.
                         </p>
                       </div>
                     </div>
@@ -1091,10 +1135,10 @@ export default function NovoAgendamentoPage() {
                     </select>
                   </div>
 
-                  {/* Especialidade ou Exame (Conforme tipo) */}
+                  {/* Especialidade ou Exame/Procedimento (Conforme tipo) */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-                      {tipo === "consulta" ? "Especialidade" : "Exame Selecionado"}
+                      {tipo === "consulta" ? "Especialidade" : "Exame/Procedimento"}
                     </label>
                     {tipo === "consulta" ? (
                       <select
