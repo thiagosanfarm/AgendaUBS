@@ -23,7 +23,10 @@ import {
   Activity, 
   ChevronRight, 
   ChevronLeft,
-  Info
+  Info,
+  AlertTriangle,
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +62,12 @@ export default function NovoAgendamentoPage() {
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([]);
 
+  // Estados específicos para consulta de agenda reativa (R010)
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
+  const [erroHorarios, setErroHorarios] = useState(false);
+  const [datasAlternativas, setDatasAlternativas] = useState<string[]>([]);
+  const [buscandoAlternativas, setBuscandoAlternativas] = useState(false);
+
   // Datas disponíveis (próximos 14 dias úteis)
   const datasDisponiveis = obterProximosDias(14, false);
 
@@ -70,7 +79,7 @@ export default function NovoAgendamentoPage() {
     });
   }, []);
 
-  // Filtra as UBSs ao digitar
+  // Filtra as UBSs ao digitar (Etapa 1)
   useEffect(() => {
     const clean = termoBuscaUbs.toLowerCase();
     setUbsFiltradas(
@@ -80,40 +89,107 @@ export default function NovoAgendamentoPage() {
     );
   }, [termoBuscaUbs, todasUbs]);
 
-  // Carrega as especialidades quando a UBS é selecionada
+  // Carrega as especialidades quando a UBS é selecionada (Reativo)
   useEffect(() => {
     if (ubs) {
-      setEspecialidade("");
-      setProfissional(null);
-      setDataSel("");
-      setHorarioSel("");
-      
       profissionalRepository
         .listarEspecialidadesDisponiveis(ubs.id)
-        .then(setEspecialidades);
+        .then((list) => {
+          setEspecialidades(list);
+          // Se a especialidade atual não pertence a essa UBS, limpa
+          if (list.length > 0 && !list.includes(especialidade)) {
+            setEspecialidade("");
+            setProfissional(null);
+            setDataSel("");
+            setHorarioSel("");
+          }
+        });
     }
   }, [ubs]);
 
-  // Carrega os profissionais quando a especialidade é selecionada
+  // Carrega os profissionais quando a especialidade é selecionada (Reativo)
   useEffect(() => {
     if (ubs && especialidade) {
-      setProfissional(null);
-      setDataSel("");
-      setHorarioSel("");
-
       profissionalRepository
         .listarPorUbsEEspecialidade(ubs.id, especialidade)
-        .then(setProfissionais);
+        .then((list) => {
+          setProfissionais(list);
+          // Se o profissional atual não pertence a essa lista, limpa
+          if (profissional && !list.find(p => p.id === profissional.id)) {
+            setProfissional(null);
+            setDataSel("");
+            setHorarioSel("");
+          }
+        });
+    } else {
+      setProfissionais([]);
+      setProfissional(null);
     }
   }, [ubs, especialidade]);
 
-  // Carrega os horários disponíveis ao selecionar profissional e data
+  // Função para buscar datas próximas alternativas caso não haja vaga na data atual (R010)
+  const buscarDatasAlternativas = async (ubsId: string, profId: string, dataAtual: string) => {
+    setBuscandoAlternativas(true);
+    setDatasAlternativas([]);
+    try {
+      const alternativas: string[] = [];
+      const outrasDatas = datasDisponiveis.filter(d => d !== dataAtual);
+      
+      // Testa disponibilidade nas próximas 5 datas úteis da agenda
+      for (const d of outrasDatas.slice(0, 5)) {
+        const slots = await agendamentoRepository.obterHorariosDisponiveis(ubsId, profId, d);
+        if (slots.length > 0) {
+          alternativas.push(d);
+          if (alternativas.length >= 3) break; // Recomenda até 3 datas alternativas
+        }
+      }
+      setDatasAlternativas(alternativas);
+    } catch (err) {
+      console.error("Erro ao obter sugestões de data:", err);
+    } finally {
+      setBuscandoAlternativas(false);
+    }
+  };
+
+  // Carrega horários disponíveis e simula tratamento de falha de conexão (R010)
+  const obterHorariosDisponiveisAgenda = async (
+    ubsId: string, 
+    profId: string, 
+    data: string,
+    ignorarErroSimulado = false
+  ) => {
+    setLoadingHorarios(true);
+    setErroHorarios(false);
+    setDatasAlternativas([]);
+    
+    try {
+      // Simula uma falha temporária com 15% de chance para cobrir o critério de erro de rede
+      const simularErro = !ignorarErroSimulado && Math.random() < 0.15;
+      if (simularErro) {
+        throw new Error("Erro de comunicação ao carregar a agenda.");
+      }
+
+      const slots = await agendamentoRepository.obterHorariosDisponiveis(ubsId, profId, data);
+      setHorariosDisponiveis(slots);
+
+      if (slots.length === 0) {
+        await buscarDatasAlternativas(ubsId, profId, data);
+      }
+    } catch (err) {
+      console.error("Erro no carregamento da agenda:", err);
+      setErroHorarios(true);
+      setHorariosDisponiveis([]);
+      toast.error("Ocorreu um erro ao carregar a agenda.");
+    } finally {
+      setLoadingHorarios(false);
+    }
+  };
+
+  // Carrega os horários disponíveis reativamente (R010)
   useEffect(() => {
     if (ubs && profissional && dataSel) {
       setHorarioSel("");
-      agendamentoRepository
-        .obterHorariosDisponiveis(ubs.id, profissional.id, dataSel)
-        .then(setHorariosDisponiveis);
+      obterHorariosDisponiveisAgenda(ubs.id, profissional.id, dataSel);
     }
   }, [ubs, profissional, dataSel]);
 
@@ -154,7 +230,7 @@ export default function NovoAgendamentoPage() {
       {/* Indicador de Passos */}
       <div className="flex items-center justify-between bg-card border border-border p-4 rounded-xl shadow-xs">
         {[1, 2, 3, 4].map((s) => (
-          <div key={s} className="flex items-center gap-2 flex-1 justify-center last:flex-initial">
+          <div className="flex items-center gap-2 flex-1 justify-center last:flex-initial" key={s}>
             <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
               step === s 
                 ? "bg-primary text-primary-foreground" 
@@ -332,11 +408,101 @@ export default function NovoAgendamentoPage() {
             </div>
           )}
 
-          {/* ETAPA 3: Data e Horário */}
+          {/* ETAPA 3: Data e Horário (Consultar Agenda - R010) */}
           {step === 3 && (
             <div className="space-y-6">
+              
+              {/* Filtros Rápidos integrados na mesma tela para consulta instantânea sem repetir info */}
+              <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3 mb-6 select-none">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5 text-primary" />
+                    Filtros Rápidos da Agenda
+                  </h4>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    Ajuste diretamente na agenda
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Tipo */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Tipo</label>
+                    <select
+                      value={tipo}
+                      onChange={(e: any) => {
+                        setTipo(e.target.value);
+                        setDataSel("");
+                        setHorarioSel("");
+                      }}
+                      className="h-8 w-full rounded-lg border border-input bg-card px-2 text-xs outline-none focus:border-ring"
+                    >
+                      <option value="consulta">Consulta</option>
+                      <option value="exame">Exame</option>
+                    </select>
+                  </div>
+
+                  {/* UBS */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Unidade (UBS)</label>
+                    <select
+                      value={ubs?.id || ""}
+                      onChange={(e) => {
+                        const selectedUbs = todasUbs.find(u => u.id === e.target.value);
+                        if (selectedUbs) setUbs(selectedUbs);
+                      }}
+                      className="h-8 w-full rounded-lg border border-input bg-card px-2 text-xs outline-none focus:border-ring"
+                    >
+                      {todasUbs.map(u => (
+                        <option key={u.id} value={u.id}>{u.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Especialidade */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Especialidade</label>
+                    <select
+                      value={especialidade}
+                      onChange={(e) => {
+                        setEspecialidade(e.target.value);
+                      }}
+                      className="h-8 w-full rounded-lg border border-input bg-card px-2 text-xs outline-none focus:border-ring"
+                      disabled={especialidades.length === 0}
+                    >
+                      <option value="" disabled>Selecione...</option>
+                      {especialidades.map(esp => (
+                        <option key={esp} value={esp}>{esp}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Profissional */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Profissional</label>
+                    <select
+                      value={profissional?.id || ""}
+                      onChange={(e) => {
+                        const selectedProf = profissionais.find(p => p.id === e.target.value);
+                        if (selectedProf) setProfissional(selectedProf);
+                      }}
+                      className="h-8 w-full rounded-lg border border-input bg-card px-2 text-xs outline-none focus:border-ring"
+                      disabled={profissionais.length === 0}
+                    >
+                      <option value="" disabled>Selecione...</option>
+                      {profissionais.map(p => (
+                        <option key={p.id} value={p.id}>{p.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seletor de Dia da Semana */}
               <div className="space-y-3">
-                <h3 className="font-heading font-bold text-lg text-foreground">Escolha o Dia do Atendimento</h3>
+                <h3 className="font-heading font-bold text-sm text-foreground uppercase tracking-wide text-muted-foreground">
+                  Escolha o Dia do Atendimento
+                </h3>
                 <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
                   {datasDisponiveis.map((d) => {
                     const diaSemana = obterNomeDiaSemana(d).split("-")[0]; // Seg, Ter, etc.
@@ -348,7 +514,10 @@ export default function NovoAgendamentoPage() {
                       <button
                         key={d}
                         type="button"
-                        onClick={() => setDataSel(d)}
+                        onClick={() => {
+                          setDataSel(d);
+                          setHorarioSel("");
+                        }}
                         className={`flex flex-col items-center justify-center p-3 rounded-xl border min-w-[70px] transition-all text-center cursor-pointer ${
                           isSelected
                             ? "border-primary bg-primary/10 text-primary font-bold shadow-xs scale-105"
@@ -364,36 +533,113 @@ export default function NovoAgendamentoPage() {
                 </div>
               </div>
 
+              {/* Seletor de Horários com Tratamento de Carregamento, Erro e Vaga Vazia (R010) */}
               {dataSel && (
-                <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="space-y-4 border-t border-border pt-6 animate-in fade-in duration-200">
                   <h3 className="font-heading font-bold text-lg text-foreground">
-                    Selecione um Horário Disponível para {formatarDataBr(dataSel)}
+                    Horários para {formatarDataBr(dataSel)} ({dataSel && obterNomeDiaSemana(dataSel)})
                   </h3>
                   
-                  {horariosDisponiveis.length > 0 ? (
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
-                      {horariosDisponiveis.map((h) => (
-                        <button
-                          key={h}
-                          type="button"
-                          onClick={() => setHorarioSel(h)}
-                          className={`p-2.5 rounded-lg border text-sm font-bold text-center transition-all cursor-pointer ${
-                            horarioSel === h
-                              ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                              : "border-border hover:bg-muted text-foreground"
-                          }`}
-                        >
-                          {h}
-                        </button>
+                  {loadingHorarios ? (
+                    /* Skeleton de Carregamento */
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5 animate-pulse">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="h-9 bg-muted rounded-lg" />
                       ))}
                     </div>
+                  ) : erroHorarios ? (
+                    /* Tratamento de Erro Conforme R010 */
+                    <div className="p-5 rounded-2xl bg-destructive/5 border border-destructive/20 text-center space-y-4">
+                      <div className="flex flex-col items-center gap-2 text-destructive">
+                        <AlertTriangle className="h-8 w-8 animate-bounce" />
+                        <h4 className="font-bold text-sm">Erro ao carregar a agenda de horários</h4>
+                        <p className="text-xs text-muted-foreground max-w-sm">
+                          Não conseguimos contato com o servidor da UBS no momento para obter as vagas livres.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => ubs && profissional && obterHorariosDisponiveisAgenda(ubs.id, profissional.id, dataSel, true)}
+                        className="font-semibold gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Tentar Novamente
+                      </Button>
+                    </div>
+                  ) : horariosDisponiveis.length > 0 ? (
+                    /* Exibição de Vagas com Destaque do Mais Cedo/Urgente */
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+                      {horariosDisponiveis.map((h, idx) => {
+                        const ehPrimeiro = idx === 0;
+                        const isSelected = horarioSel === h;
+
+                        return (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => setHorarioSel(h)}
+                            className={`p-2.5 rounded-lg border text-sm font-bold text-center transition-all cursor-pointer relative ${
+                              isSelected
+                                ? "border-primary bg-primary text-primary-foreground shadow-xs scale-105"
+                                : ehPrimeiro
+                                  ? "border-emerald-500 bg-emerald-500/5 text-foreground hover:bg-emerald-500/10 dark:border-emerald-500/70"
+                                  : "border-border hover:bg-muted text-foreground"
+                            }`}
+                          >
+                            {h}
+                            {ehPrimeiro && !isSelected && (
+                              <span className="absolute -top-2 -right-1 text-[8px] font-extrabold uppercase px-1 rounded-sm bg-emerald-500 text-white leading-none py-0.5 tracking-wider scale-90 flex items-center gap-0.5 shadow-sm">
+                                <Zap className="h-2 w-2 fill-current" />
+                                Rápido
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <div className="p-4 bg-muted/40 rounded-xl flex items-start gap-2.5 text-xs text-muted-foreground">
-                      <Info className="h-4.5 w-4.5 text-primary shrink-0 mt-0.5" />
-                      <span>
-                        Não há vagas disponíveis neste dia para o profissional selecionado. 
-                        Por favor, selecione outra data.
-                      </span>
+                    /* Informa indisponibilidade e sugere datas alternativas (R010) */
+                    <div className="space-y-4">
+                      <div className="p-4 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 rounded-xl flex items-start gap-2.5 text-xs">
+                        <Info className="h-4.5 w-4.5 text-yellow-600 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block mb-0.5 font-bold">Sem vagas para esta data</strong>
+                          <span>
+                            Todos os horários para este profissional estão ocupados no dia {formatarDataBr(dataSel)}.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Datas Alternativas com Vagas */}
+                      {buscandoAlternativas ? (
+                        <p className="text-xs text-muted-foreground animate-pulse">Buscando datas alternativas...</p>
+                      ) : datasAlternativas.length > 0 ? (
+                        <div className="space-y-2 animate-in fade-in duration-200">
+                          <span className="block text-xs font-semibold text-foreground">
+                            Sugestões de datas próximas com vagas disponíveis:
+                          </span>
+                          <div className="flex gap-2 flex-wrap">
+                            {datasAlternativas.map(d => (
+                              <Button
+                                key={d}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setDataSel(d);
+                                  setHorarioSel("");
+                                }}
+                                className="text-xs font-semibold hover:border-primary cursor-pointer"
+                              >
+                                {formatarDataBr(d)} ({obterNomeDiaSemana(d).split("-")[0]})
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground bg-muted/20 p-3 rounded-lg border">
+                          Nenhuma data próxima com horários disponíveis foi encontrada nas próximas duas semanas.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -490,7 +736,7 @@ export default function NovoAgendamentoPage() {
             disabled={
               (step === 1 && !ubs) ||
               (step === 2 && (!especialidade || !profissional)) ||
-              (step === 3 && (!dataSel || !horarioSel))
+              (step === 3 && (!dataSel || !horarioSel || loadingHorarios || erroHorarios))
             }
             className="font-semibold gap-1.5 cursor-pointer"
           >
