@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { InputCPF } from "@/components/forms/InputCPF";
 import { InputCNS } from "@/components/forms/InputCNS";
 import { formatarTelefone, formatarCEP } from "@/utils/formatters";
-import { validarCPF, validarCNS, validarEmail } from "@/utils/validators";
+import { validarCPF, validarCNS, validarEmail, validarTelefone } from "@/utils/validators";
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -36,11 +36,14 @@ export default function CadastroPage() {
   const [cidade, setCidade] = useState("");
   const [uf, setUf] = useState("");
 
+  // Estado de erros individuais (UX melhorada com shadcn/ui)
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const formattedCep = formatarCEP(e.target.value);
     setCep(formattedCep);
+    if (errors.cep) setErrors(prev => ({ ...prev, cep: "" }));
 
-    // Busca automática por CEP via API ViaCEP
     const cleanCep = formattedCep.replace(/\D/g, "");
     if (cleanCep.length === 8) {
       try {
@@ -51,7 +54,19 @@ export default function CadastroPage() {
           setBairro(data.bairro || "");
           setCidade(data.localidade || "");
           setUf(data.uf || "");
-          toast.success("Endereço autocompletado com sucesso!");
+          
+          // Limpa erros de endereço autocompletados
+          setErrors(prev => ({
+            ...prev,
+            logradouro: "",
+            bairro: "",
+            cidade: "",
+            uf: ""
+          }));
+
+          toast.success("Endereço autocompletado via CEP!");
+        } else {
+          setErrors(prev => ({ ...prev, cep: "CEP não encontrado." }));
         }
       } catch (err) {
         console.error("Erro ao buscar CEP", err);
@@ -59,37 +74,72 @@ export default function CadastroPage() {
     }
   };
 
+  const validarCampos = (): boolean => {
+    const novosErros: Record<string, string> = {};
+
+    // Nome completo (deve ter nome e sobrenome)
+    if (!nomeCompleto.trim()) {
+      novosErros.nomeCompleto = "O nome completo é obrigatório.";
+    } else if (nomeCompleto.trim().split(/\s+/).length < 2) {
+      novosErros.nomeCompleto = "Insira seu nome completo (nome e pelo menos um sobrenome).";
+    }
+
+    // CPF
+    if (!cpf) {
+      novosErros.cpf = "O CPF é obrigatório.";
+    } else if (!validarCPF(cpf)) {
+      novosErros.cpf = "CPF inválido de acordo com o padrão nacional.";
+    }
+
+    // Cartão SUS (CNS)
+    if (!cns) {
+      novosErros.cns = "O Cartão do SUS é obrigatório.";
+    } else if (!validarCNS(cns)) {
+      novosErros.cns = "Cartão Nacional de Saúde (CNS) inválido.";
+    }
+
+    // Data de Nascimento
+    if (!dataNascimento) {
+      novosErros.dataNascimento = "A data de nascimento é obrigatória.";
+    }
+
+    // E-mail
+    if (!email) {
+      novosErros.email = "O e-mail é obrigatório.";
+    } else if (!validarEmail(email)) {
+      novosErros.email = "Formato de e-mail inválido.";
+    }
+
+    // Telefone (obrigatório pelo R001)
+    if (!telefone) {
+      novosErros.telefone = "O telefone é obrigatório.";
+    } else if (!validarTelefone(telefone)) {
+      novosErros.telefone = "Telefone inválido. Insira DDD + número.";
+    }
+
+    // Endereço Residencial
+    if (!cep) novosErros.cep = "O CEP é obrigatório.";
+    if (!logradouro) novosErros.logradouro = "O logradouro é obrigatório.";
+    if (!numero) novosErros.numero = "O número é obrigatório.";
+    if (!bairro) novosErros.bairro = "O bairro é obrigatório.";
+    if (!cidade) novosErros.cidade = "A cidade é obrigatória.";
+    if (!uf) novosErros.uf = "A UF é obrigatória.";
+
+    setErrors(novosErros);
+
+    // Se houver algum erro, exibe feedback no toast informando que existem pendências
+    if (Object.keys(novosErros).length > 0) {
+      toast.error("Por favor, corrija os erros sinalizados no formulário.");
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validações locais
-    if (nomeCompleto.trim().split(" ").length < 2) {
-      toast.error("Por favor, insira seu nome completo (nome e sobrenome).");
-      return;
-    }
-
-    if (!validarCPF(cpf)) {
-      toast.error("CPF inválido.");
-      return;
-    }
-
-    if (!validarCNS(cns)) {
-      toast.error("Cartão Nacional de Saúde (CNS) inválido.");
-      return;
-    }
-
-    if (!validarEmail(email)) {
-      toast.error("E-mail inválido.");
-      return;
-    }
-
-    if (!dataNascimento) {
-      toast.error("Data de nascimento é obrigatória.");
-      return;
-    }
-
-    if (!cep || !logradouro || !numero || !bairro || !cidade || !uf) {
-      toast.error("Por favor, preencha todos os campos obrigatórios de endereço.");
+    if (!validarCampos()) {
       return;
     }
 
@@ -115,76 +165,114 @@ export default function CadastroPage() {
         },
       });
 
-      toast.success("Cadastro realizado com sucesso!");
+      toast.success("Cadastro realizado com sucesso! Bem-vindo ao AgendaUBS.");
       router.push("/painel");
     } catch (err: any) {
-      toast.error(err.message || "Erro ao realizar cadastro.");
+      const msg = err.message || "";
+      // Exibe erros de unicidade vindos do backend/banco de dados inline sob o campo correspondente
+      if (msg.includes("CPF")) {
+        setErrors(prev => ({ ...prev, cpf: msg }));
+        toast.error(msg);
+      } else if (msg.includes("SUS") || msg.includes("CNS")) {
+        setErrors(prev => ({ ...prev, cns: msg }));
+        toast.error(msg);
+      } else {
+        toast.error(msg || "Falha ao processar o cadastro. Tente novamente.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Card className="border-border shadow-lg shadow-black/5 bg-card/75 backdrop-blur-md max-h-[85vh] overflow-y-auto">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-xl font-bold tracking-tight">Criar Conta Digital SUS</CardTitle>
+    <Card className="border-border shadow-lg shadow-black/5 bg-card/75 backdrop-blur-md max-h-[85vh] overflow-y-auto animate-in fade-in duration-300">
+      <CardHeader className="space-y-1 pb-4">
+        <CardTitle className="text-xl font-bold tracking-tight">Criar Cartão SUS Digital</CardTitle>
         <CardDescription>
-          Faça seu cadastro para começar a agendar consultas e exames de forma simples e digital.
+          Preencha os dados obrigatórios para criar sua conta digital e agendar seus atendimentos.
         </CardDescription>
       </CardHeader>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <CardContent className="space-y-6">
+          
           {/* Seção 1: Dados Pessoais */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-primary border-b border-border pb-1">
-              Dados Pessoais
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-border pb-1">
+              Dados Pessoais e de Contato
             </h3>
 
-            <div className="space-y-2">
+            {/* Nome Completo */}
+            <div className="space-y-1.5">
               <label htmlFor="nomeCompleto" className="text-xs font-semibold text-foreground">
                 Nome Completo *
               </label>
               <Input
                 id="nomeCompleto"
                 value={nomeCompleto}
-                onChange={(e) => setNomeCompleto(e.target.value)}
+                onChange={(e) => {
+                  setNomeCompleto(e.target.value);
+                  if (errors.nomeCompleto) setErrors(prev => ({ ...prev, nomeCompleto: "" }));
+                }}
                 placeholder="Ex: Maria Oliveira Silva"
-                required
+                aria-invalid={!!errors.nomeCompleto}
                 disabled={isSubmitting}
               />
+              {errors.nomeCompleto && (
+                <p className="text-[11px] font-semibold text-destructive mt-1">
+                  {errors.nomeCompleto}
+                </p>
+              )}
             </div>
 
+            {/* CPF e CNS (SUS) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="cpf" className="text-xs font-semibold text-foreground">
                   CPF *
                 </label>
                 <InputCPF
                   id="cpf"
                   value={cpf}
-                  onChange={setCpf}
-                  required
+                  onChange={(val) => {
+                    setCpf(val);
+                    if (errors.cpf) setErrors(prev => ({ ...prev, cpf: "" }));
+                  }}
+                  aria-invalid={!!errors.cpf}
                   disabled={isSubmitting}
                 />
+                {errors.cpf && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.cpf}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="cns" className="text-xs font-semibold text-foreground">
                   Nº Cartão SUS *
                 </label>
                 <InputCNS
                   id="cns"
                   value={cns}
-                  onChange={setCns}
-                  required
+                  onChange={(val) => {
+                    setCns(val);
+                    if (errors.cns) setErrors(prev => ({ ...prev, cns: "" }));
+                  }}
+                  aria-invalid={!!errors.cns}
                   disabled={isSubmitting}
                 />
+                {errors.cns && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.cns}
+                  </p>
+                )}
               </div>
             </div>
 
+            {/* Data de Nascimento e Gênero */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="dataNascimento" className="text-xs font-semibold text-foreground">
                   Data de Nascimento *
                 </label>
@@ -192,13 +280,21 @@ export default function CadastroPage() {
                   id="dataNascimento"
                   type="date"
                   value={dataNascimento}
-                  onChange={(e) => setDataNascimento(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setDataNascimento(e.target.value);
+                    if (errors.dataNascimento) setErrors(prev => ({ ...prev, dataNascimento: "" }));
+                  }}
+                  aria-invalid={!!errors.dataNascimento}
                   disabled={isSubmitting}
                 />
+                {errors.dataNascimento && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.dataNascimento}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="genero" className="text-xs font-semibold text-foreground">
                   Gênero *
                 </label>
@@ -206,8 +302,7 @@ export default function CadastroPage() {
                   id="genero"
                   value={genero}
                   onChange={(e: any) => setGenero(e.target.value)}
-                  className="h-8 w-full min-w-0 rounded-lg border border-input bg-card px-2 text-sm outline-none focus-visible:border-ring"
-                  required
+                  className="h-8 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   disabled={isSubmitting}
                 >
                   <option value="masculino">Masculino</option>
@@ -217,22 +312,32 @@ export default function CadastroPage() {
               </div>
             </div>
 
+            {/* Telefone e E-mail */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="telefone" className="text-xs font-semibold text-foreground">
-                  Celular/Telefone
+                  Telefone / Celular *
                 </label>
                 <Input
                   id="telefone"
                   type="tel"
                   placeholder="(00) 00000-0000"
                   value={telefone}
-                  onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+                  onChange={(e) => {
+                    setTelefone(formatarTelefone(e.target.value));
+                    if (errors.telefone) setErrors(prev => ({ ...prev, telefone: "" }));
+                  }}
+                  aria-invalid={!!errors.telefone}
                   disabled={isSubmitting}
                 />
+                {errors.telefone && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.telefone}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="email" className="text-xs font-semibold text-foreground">
                   E-mail *
                 </label>
@@ -241,22 +346,31 @@ export default function CadastroPage() {
                   type="email"
                   placeholder="seuemail@exemplo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
+                  }}
+                  aria-invalid={!!errors.email}
                   disabled={isSubmitting}
                 />
+                {errors.email && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.email}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
           {/* Seção 2: Endereço */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-primary border-b border-border pb-1">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-border pb-1">
               Endereço Residencial
             </h3>
 
+            {/* CEP e Logradouro */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-1 space-y-2">
+              <div className="col-span-1 space-y-1.5">
                 <label htmlFor="cep" className="text-xs font-semibold text-foreground">
                   CEP *
                 </label>
@@ -265,42 +379,64 @@ export default function CadastroPage() {
                   placeholder="00000-000"
                   value={cep}
                   onChange={handleCepChange}
-                  required
+                  aria-invalid={!!errors.cep}
                   disabled={isSubmitting}
                 />
+                {errors.cep && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.cep}
+                  </p>
+                )}
               </div>
 
-              <div className="col-span-2 space-y-2">
+              <div className="col-span-2 space-y-1.5">
                 <label htmlFor="logradouro" className="text-xs font-semibold text-foreground">
-                  Logradouro (Rua, Av.) *
+                  Logradouro *
                 </label>
                 <Input
                   id="logradouro"
                   value={logradouro}
-                  onChange={(e) => setLogradouro(e.target.value)}
-                  placeholder="Nome da rua ou avenida"
-                  required
+                  onChange={(e) => {
+                    setLogradouro(e.target.value);
+                    if (errors.logradouro) setErrors(prev => ({ ...prev, logradouro: "" }));
+                  }}
+                  placeholder="Rua, Avenida, etc."
+                  aria-invalid={!!errors.logradouro}
                   disabled={isSubmitting}
                 />
+                {errors.logradouro && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.logradouro}
+                  </p>
+                )}
               </div>
             </div>
 
+            {/* Número e Complemento */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-1 space-y-2">
+              <div className="col-span-1 space-y-1.5">
                 <label htmlFor="numero" className="text-xs font-semibold text-foreground">
                   Número *
                 </label>
                 <Input
                   id="numero"
                   value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
+                  onChange={(e) => {
+                    setNumero(e.target.value);
+                    if (errors.numero) setErrors(prev => ({ ...prev, numero: "" }));
+                  }}
                   placeholder="Nº"
-                  required
+                  aria-invalid={!!errors.numero}
                   disabled={isSubmitting}
                 />
+                {errors.numero && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.numero}
+                  </p>
+                )}
               </div>
 
-              <div className="col-span-2 space-y-2">
+              <div className="col-span-2 space-y-1.5">
                 <label htmlFor="complemento" className="text-xs font-semibold text-foreground">
                   Complemento
                 </label>
@@ -308,60 +444,87 @@ export default function CadastroPage() {
                   id="complemento"
                   value={complemento}
                   onChange={(e) => setComplemento(e.target.value)}
-                  placeholder="Apt, Bloco, etc."
+                  placeholder="Apto, Bloco, etc. (Opcional)"
                   disabled={isSubmitting}
                 />
               </div>
             </div>
 
+            {/* Bairro, Cidade e UF */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="bairro" className="text-xs font-semibold text-foreground">
                   Bairro *
                 </label>
                 <Input
                   id="bairro"
                   value={bairro}
-                  onChange={(e) => setBairro(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setBairro(e.target.value);
+                    if (errors.bairro) setErrors(prev => ({ ...prev, bairro: "" }));
+                  }}
+                  placeholder="Ex: Centro"
+                  aria-invalid={!!errors.bairro}
                   disabled={isSubmitting}
                 />
+                {errors.bairro && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.bairro}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="cidade" className="text-xs font-semibold text-foreground">
                   Cidade *
                 </label>
                 <Input
                   id="cidade"
                   value={cidade}
-                  onChange={(e) => setCidade(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setCidade(e.target.value);
+                    if (errors.cidade) setErrors(prev => ({ ...prev, cidade: "" }));
+                  }}
+                  placeholder="Ex: São Paulo"
+                  aria-invalid={!!errors.cidade}
                   disabled={isSubmitting}
                 />
+                {errors.cidade && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.cidade}
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label htmlFor="uf" className="text-xs font-semibold text-foreground">
                   UF *
                 </label>
                 <Input
                   id="uf"
                   value={uf}
-                  onChange={(e) => setUf(e.target.value)}
+                  onChange={(e) => {
+                    setUf(e.target.value);
+                    if (errors.uf) setErrors(prev => ({ ...prev, uf: "" }));
+                  }}
                   maxLength={2}
                   placeholder="SP"
-                  required
+                  aria-invalid={!!errors.uf}
                   disabled={isSubmitting}
                 />
+                {errors.uf && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.uf}
+                  </p>
+                )}
               </div>
             </div>
           </div>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-4 border-t border-border pt-4">
-          <Button type="submit" className="w-full font-semibold cursor-pointer" disabled={isSubmitting}>
-            {isSubmitting ? "Cadastrando..." : "Confirmar Cadastro"}
+          <Button type="submit" className="w-full font-semibold cursor-pointer shadow-sm shadow-primary/10" disabled={isSubmitting}>
+            {isSubmitting ? "Efetuando cadastro..." : "Cadastrar"}
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
@@ -370,7 +533,7 @@ export default function CadastroPage() {
               href="/login" 
               className="text-primary font-semibold hover:underline"
             >
-              Fazer Login
+              Entrar na minha conta
             </Link>
           </p>
         </CardFooter>

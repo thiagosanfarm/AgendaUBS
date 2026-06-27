@@ -33,17 +33,48 @@ export default function AuthLayout({
   return (
     <main className="min-h-screen flex items-center justify-center bg-linear-to-tr from-primary/5 via-background to-accent/10 p-4 md:p-8">
       <div className="w-full max-w-md">
-        {/* Logo superior */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3 shadow-md shadow-primary/5">
-            <Activity className="h-6 w-6 stroke-[2.5]" />
-          </div>
-          <h2 className="font-heading font-bold text-2xl tracking-tight text-foreground">AgendaUBS</h2>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mt-0.5">SISTEMA ÚNICO DE SAÚDE</p>
+        {/* Logo superior SUS Agendamento conforme protótipo */}
+        <div className="flex flex-col items-center mb-8 select-none">
+          <svg 
+            width="64" 
+            height="64" 
+            viewBox="0 0 100 100" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-primary mb-2"
+          >
+            {/* Desenho da cruz clássica do SUS (faixas dobradas) */}
+            <path 
+              d="M32 12H68V32H88V68H68V88H32V68H12V32H32Z" 
+              fill="currentColor" 
+            />
+            {/* Efeito de perspectiva interna */}
+            <path 
+              d="M32 32L50 50L68 32M32 68L50 50L68 68" 
+              stroke="var(--background)" 
+              strokeWidth="4" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+            />
+            <path 
+              d="M32 32V68M68 32V68" 
+              stroke="var(--background)" 
+              strokeWidth="4" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+            />
+          </svg>
+          <h2 className="font-heading font-black text-2xl tracking-tighter text-primary leading-none uppercase">
+            SUS
+          </h2>
+          <p className="font-heading font-bold text-sm tracking-tight text-primary mt-0.5">
+            Agendamento
+          </p>
         </div>
 
         {children}
       </div>
     </main>
   );
+
 }
