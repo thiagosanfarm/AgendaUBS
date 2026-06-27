@@ -7,12 +7,15 @@ import {
   LayoutDashboard, 
   CalendarPlus, 
   CalendarRange, 
-  User 
+  User,
+  UserPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { paciente } = useAuth();
 
   const menuItems = [
     {
@@ -36,6 +39,14 @@ export function MobileNav() {
       icon: User,
     },
   ];
+
+  if (paciente?.papel === "administrador") {
+    menuItems.push({
+      label: "Cadastrar",
+      href: "/painel/profissionais/novo",
+      icon: UserPlus,
+    });
+  }
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 border-t border-border bg-card flex items-center justify-around px-2 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_10px_rgba(0,0,0,0.2)]">

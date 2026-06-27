@@ -18,5 +18,6 @@ export interface Paciente {
   };
   senha: string; // Senha criptografada/armazenada
   dataCriacao: string;
+  papel?: 'paciente' | 'administrador';
+  ubsId?: string; // ID da UBS vinculada (para administradores/gestores)
 }
-

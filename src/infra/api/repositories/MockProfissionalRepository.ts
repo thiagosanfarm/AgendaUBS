@@ -313,28 +313,73 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
   }
 ];
 
+const KEY = "agendaubs_profissionais";
+
+const obterListaProfissionais = (): Profissional[] => {
+  if (typeof window === "undefined") {
+    return MOCK_PROFISSIONAIS;
+  }
+  const saved = localStorage.getItem(KEY);
+  if (!saved) {
+    localStorage.setItem(KEY, JSON.stringify(MOCK_PROFISSIONAIS));
+    return MOCK_PROFISSIONAIS;
+  }
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return MOCK_PROFISSIONAIS;
+  }
+};
+
+const salvarListaProfissionais = (lista: Profissional[]) => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(KEY, JSON.stringify(lista));
+  }
+};
+
 export class MockProfissionalRepository implements IProfissionalRepository {
   async obterPorId(id: string): Promise<Profissional | null> {
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    const profissional = MOCK_PROFISSIONAIS.find(p => p.id === id);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const lista = obterListaProfissionais();
+    const profissional = lista.find(p => p.id === id);
     return profissional || null;
   }
 
   async listarPorUbs(ubsId: string): Promise<Profissional[]> {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    return MOCK_PROFISSIONAIS.filter(p => p.ubsId === ubsId);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const lista = obterListaProfissionais();
+    return lista.filter(p => p.ubsId === ubsId);
   }
 
   async listarPorUbsEEspecialidade(ubsId: string, especialidade: string): Promise<Profissional[]> {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    return MOCK_PROFISSIONAIS.filter(p => p.ubsId === ubsId && p.especialidade === especialidade);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const lista = obterListaProfissionais();
+    return lista.filter(p => p.ubsId === ubsId && p.especialidade === especialidade);
   }
 
   async listarEspecialidadesDisponiveis(ubsId: string): Promise<string[]> {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const profissionaisDaUbs = MOCK_PROFISSIONAIS.filter(p => p.ubsId === ubsId);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const lista = obterListaProfissionais();
+    const profissionaisDaUbs = lista.filter(p => p.ubsId === ubsId);
     const especialidades = profissionaisDaUbs.map(p => p.especialidade);
-    // Remove duplicatas
     return Array.from(new Set(especialidades));
+  }
+
+  async cadastrar(profissional: Profissional): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const lista = obterListaProfissionais();
+    lista.push(profissional);
+    salvarListaProfissionais(lista);
+  }
+
+  async obterPorCpfOuRegistro(cpf?: string, registro?: string): Promise<Profissional | null> {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const lista = obterListaProfissionais();
+    const prof = lista.find(p => {
+      const bateCpf = cpf && p.cpf === cpf;
+      const bateReg = registro && p.registroProfissional.numero === registro;
+      return bateCpf || bateReg;
+    });
+    return prof || null;
   }
 }

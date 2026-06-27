@@ -9,7 +9,9 @@ import {
   CalendarRange, 
   User, 
   LogOut, 
-  Activity 
+  Activity,
+  UserPlus,
+  ShieldCheck
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,19 @@ export function Sidebar({ className }: SidebarProps) {
       icon: User,
     },
   ];
+
+  if (paciente?.papel === "administrador") {
+    menuItems.push({
+      label: "Cadastrar Profissional",
+      href: "/painel/profissionais/novo",
+      icon: UserPlus,
+    });
+    menuItems.push({
+      label: "Cadastrar Gestor UBS",
+      href: "/painel/administradores/novo",
+      icon: ShieldCheck,
+    });
+  }
 
   return (
     <aside className={cn(
