@@ -26,7 +26,8 @@ import {
   Info,
   AlertTriangle,
   RefreshCw,
-  Zap
+  Zap,
+  Users
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,225 @@ const ubsRepository = new MockUbsRepository();
 const profissionalRepository = new MockProfissionalRepository();
 const agendamentoRepository = new LocalStorageAgendamentoRepository();
 const criarAgendamentoUseCase = new CriarAgendamento(agendamentoRepository);
+
+// Dicionário de descrições e categorizações de especialidades para o R011
+const DESCRICOES_ESPECIALIDADES: Record<string, { nomeExibicao: string; descricao: string; categoria: string }> = {
+  // --- Consultas Médicas ---
+  "Clínico Geral": {
+    nomeExibicao: "Clínico Geral",
+    descricao: "Consultas de rotina, check-ups, receitas médicas e encaminhamento para especialistas.",
+    categoria: "Consultas Médicas"
+  },
+  "Médico de Família e Comunidade": {
+    nomeExibicao: "Médico de Família e Comunidade (MFC)",
+    descricao: "Atendimento integral e contínuo ao indivíduo e à família na comunidade.",
+    categoria: "Consultas Médicas"
+  },
+  "Pediatria": {
+    nomeExibicao: "Pediatria",
+    descricao: "Atendimento voltado para a saúde e desenvolvimento de bebês, crianças e adolescentes.",
+    categoria: "Consultas Médicas"
+  },
+  "Ginecologia e Obstetrícia": {
+    nomeExibicao: "Ginecologia e Obstetrícia",
+    descricao: "Saúde reprodutiva da mulher, exames preventivos, acompanhamento gestacional e parto.",
+    categoria: "Consultas Médicas"
+  },
+  "Cardiologia": {
+    nomeExibicao: "Cardiologia",
+    descricao: "Diagnóstico, tratamento e prevenção de doenças cardíacas e do sistema circulatório.",
+    categoria: "Consultas Médicas"
+  },
+  "Dermatologia": {
+    nomeExibicao: "Dermatologia",
+    descricao: "Cuidados com a pele, cabelos e unhas, diagnóstico de lesões e alergias cutâneas.",
+    categoria: "Consultas Médicas"
+  },
+  "Psiquiatria": {
+    nomeExibicao: "Psiquiatria",
+    descricao: "Apoio à saúde mental, diagnóstico e tratamento de transtornos emocionais ou químicos.",
+    categoria: "Consultas Médicas"
+  },
+  "Geriatria": {
+    nomeExibicao: "Geriatria",
+    descricao: "Atendimento médico preventivo e terapêutico para idosos e envelhecimento saudável.",
+    categoria: "Consultas Médicas"
+  },
+  "Endocrinologia": {
+    nomeExibicao: "Endocrinologia",
+    descricao: "Diagnóstico e tratamento de desordens hormonais, diabetes, tireoide e obesidade.",
+    categoria: "Consultas Médicas"
+  },
+  "Infectologia": {
+    nomeExibicao: "Infectologia",
+    descricao: "Tratamento de infecções bacterianas, virais, parasitárias e acompanhamento epidemiológico.",
+    categoria: "Consultas Médicas"
+  },
+
+  // --- Enfermagem e Procedimentos ---
+  "Consulta de Enfermagem": {
+    nomeExibicao: "Consulta de Enfermagem",
+    descricao: "Acolhimento de enfermagem, acompanhamento de dores crônicas, pressão e diabetes.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Imunização (Vacinação)": {
+    nomeExibicao: "Imunização (Vacinação)",
+    descricao: "Aplicação de vacinas do calendário nacional e orientações de imunização preventiva.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Acompanhamento Pré-Natal": {
+    nomeExibicao: "Acompanhamento Pré-Natal",
+    descricao: "Consultas periódicas de acompanhamento da gestante e saúde do bebê na gravidez.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Curativos": {
+    nomeExibicao: "Curativos e Suturas",
+    descricao: "Limpeza, higienização, curativos em feridas e retirada de pontos cirúrgicos.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Coleta de Exames": {
+    nomeExibicao: "Coleta de Exames",
+    descricao: "Retirada de amostras de sangue, urina e fezes para análises laboratoriais.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Testes Rápidos (HIV, Sífilis, Hepatites)": {
+    nomeExibicao: "Testes Rápidos (DST/Aids/Hepatites)",
+    descricao: "Exames rápidos de triagem para ISTs com entrega de resultado sigiloso em 15 minutos.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Puericultura": {
+    nomeExibicao: "Puericultura (Acompanhamento Infantil)",
+    descricao: "Monitoramento de crescimento, desenvolvimento, peso e vacinação de bebês.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+  "Hiperdia (Hipertensão e Diabetes)": {
+    nomeExibicao: "Hiperdia (Hipertensos e Diabéticos)",
+    descricao: "Acompanhamento clínico continuado e entrega de medicamentos para pressão e diabetes.",
+    categoria: "Enfermagem e Procedimentos"
+  },
+
+  // --- Saúde Bucal ---
+  "Odontologia Geral": {
+    nomeExibicao: "Saúde Bucal (Dentista Geral)",
+    descricao: "Tratamentos dentários preventivos, restaurações, extrações e limpeza bucal geral.",
+    categoria: "Saúde Bucal"
+  },
+  "Odontopediatria": {
+    nomeExibicao: "Odontologia Infantil",
+    descricao: "Tratamento dentário infantil voltado para a saúde e prevenção de cáries em crianças.",
+    categoria: "Saúde Bucal"
+  },
+  "Periodontia": {
+    nomeExibicao: "Tratamento de Gengiva (Periodontia)",
+    descricao: "Prevenção, diagnóstico e tratamento de inflamações na gengiva e tecidos de suporte.",
+    categoria: "Saúde Bucal"
+  },
+  "Endodontia": {
+    nomeExibicao: "Tratamento de Canal (Endodontia)",
+    descricao: "Diagnóstico e tratamento de polpa dentária infeccionada ou com dor de dente.",
+    categoria: "Saúde Bucal"
+  },
+  "Cirurgia Oral Menor": {
+    nomeExibicao: "Cirurgia Oral Menor",
+    descricao: "Pequenos procedimentos cirúrgicos orais na UBS, como remoção de dentes inclusos.",
+    categoria: "Saúde Bucal"
+  },
+
+  // --- Equipe Multiprofissional ---
+  "Psicologia Clínica": {
+    nomeExibicao: "Psicologia Clínica (Psicólogo)",
+    descricao: "Sessões de terapia, acolhimento e escuta clínica individual sobre saúde mental.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Psicologia Infantil": {
+    nomeExibicao: "Psicologia Infantil",
+    descricao: "Apoio psicológico infantil focado no desenvolvimento comportamental e de aprendizado.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Atendimento em Grupo": {
+    nomeExibicao: "Atendimento Psicoterapêutico em Grupo",
+    descricao: "Rodas de conversa estruturadas, apoio mútuo e terapia em grupo da comunidade.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Consulta Nutricional": {
+    nomeExibicao: "Consulta Nutricional (Nutricionista)",
+    descricao: "Avaliação alimentar, reeducação de hábitos e planos de emagrecimento ou ganho de peso.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Reeducação Alimentar": {
+    nomeExibicao: "Reeducação Alimentar",
+    descricao: "Orientações para mudança de hábitos alimentares visando prevenção e saúde digestiva.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Atenção Farmacêutica": {
+    nomeExibicao: "Atenção Farmacêutica (Farmacêutico)",
+    descricao: "Consulta com farmacêutico para alinhamento de remédios de uso crônico.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Orientação sobre Uso Correto de Medicamentos": {
+    nomeExibicao: "Orientação e Uso de Medicamentos",
+    descricao: "Tira-dúvidas sobre horários, efeitos colaterais e interações medicamentosas.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Atendimento Social": {
+    nomeExibicao: "Serviço Social (Assistente Social)",
+    descricao: "Acolhimento sobre direitos civis, benefícios sociais do governo e vulnerabilidade familiar.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Encaminhamento para Benefícios": {
+    nomeExibicao: "Encaminhamento e Programas Sociais",
+    descricao: "Triagem para inclusão no Bolsa Família, BPC (LOAS) e programas habitacionais.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Fisioterapia Ortopédica": {
+    nomeExibicao: "Fisioterapia Ortopédica",
+    descricao: "Reabilitação de fraturas, entorses, dores na coluna, dores articulares e tendinite.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Fisioterapia Neurológica": {
+    nomeExibicao: "Fisioterapia Neurológica",
+    descricao: "Reabilitação motora pós-AVC, Parkinson, Alzheimer e outras disfunções do sistema nervoso.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Avaliação Física": {
+    nomeExibicao: "Educação Física (Avaliação Corporal)",
+    descricao: "Medição de IMC, percentual de gordura e prescrição de treinos preventivos na UBS.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Grupos de Caminhada": {
+    nomeExibicao: "Grupo de Caminhada Orientada",
+    descricao: "Caminhadas coletivas com orientação física, aferição de pressão e alongamentos.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Avaliação da Fala": {
+    nomeExibicao: "Fonoaudiologia (Avaliação da Fala e Voz)",
+    descricao: "Diagnóstico e tratamento de distúrbios da fala, gagueira, rouquidão e audição.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Linguagem Infantil": {
+    nomeExibicao: "Linguagem e Aprendizado Infantil",
+    descricao: "Tratamento fonoaudiológico para atrasos de fala, leitura e escrita em crianças.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Desenvolvimento Infantil": {
+    nomeExibicao: "Terapia Ocupacional (Desenvolvimento)",
+    descricao: "Terapia ocupacional para estímulo motor e cognitivo de crianças com atrasos de desenvolvimento.",
+    categoria: "Equipe Multiprofissional"
+  },
+  "Estimulação Cognitiva": {
+    nomeExibicao: "Terapia Ocupacional (Cognição e Memória)",
+    descricao: "Atendimento terapêutico para idosos e adultos com perda de memória ou declínio cognitivo.",
+    categoria: "Equipe Multiprofissional"
+  }
+};
+
+// Categorias Profissionais no R011 - Atualizado conforme a recomendação do SUS
+const CATEGORIAS_PROFISSIONAIS = [
+  { id: "Consultas Médicas", nome: "Consultas Médicas", desc: "Consultas com médicos especialistas e generalistas.", icon: Stethoscope },
+  { id: "Enfermagem e Procedimentos", nome: "Enfermagem e Procedimentos", desc: "Acolhimento, vacinas e monitoramento de saúde.", icon: Activity },
+  { id: "Saúde Bucal", nome: "Saúde Bucal", desc: "Consultas e procedimentos dentários.", icon: User },
+  { id: "Equipe Multiprofissional", nome: "Equipe Multiprofissional", desc: "Psicólogos, fisioterapeutas, assistentes sociais e outros.", icon: Users },
+];
 
 export default function NovoAgendamentoPage() {
   const router = useRouter();
@@ -53,6 +273,10 @@ export default function NovoAgendamentoPage() {
   const [dataSel, setDataSel] = useState(""); // YYYY-MM-DD
   const [horarioSel, setHorarioSel] = useState(""); // HH:MM
   const [observacoes, setObservacoes] = useState("");
+
+  // Estados específicos de filtros de especialidade (R011)
+  const [categoriaSel, setCategoriaSel] = useState<string>("Consultas Médicas");
+  const [buscaEspecialidade, setBuscaEspecialidade] = useState("");
 
   // Listas de opções
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
@@ -166,7 +390,7 @@ export default function NovoAgendamentoPage() {
       // Simula uma falha temporária com 15% de chance para cobrir o critério de erro de rede
       const simularErro = !ignorarErroSimulado && Math.random() < 0.15;
       if (simularErro) {
-        throw new Error("Erro de comunicação ao carregar a agenda.");
+        throw new Error("Erro de conexão ao carregar a agenda.");
       }
 
       const slots = await agendamentoRepository.obterHorariosDisponiveis(ubsId, profId, data);
@@ -223,6 +447,21 @@ export default function NovoAgendamentoPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Filtra as especialidades com base na categoria profissional selecionada e busca (R011)
+  const especialidadesFiltradas = especialidades.filter(esp => {
+    const config = DESCRICOES_ESPECIALIDADES[esp];
+    const categoriaDoEsp = config ? config.categoria : "Outros";
+    const bateCategoria = categoriaDoEsp === categoriaSel;
+    
+    const termo = buscaEspecialidade.trim().toLowerCase();
+    if (!termo) return bateCategoria;
+
+    const bateNome = esp.toLowerCase().includes(termo);
+    const bateDesc = config ? config.descricao.toLowerCase().includes(termo) : false;
+    
+    return bateCategoria && (bateNome || bateDesc);
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -341,42 +580,153 @@ export default function NovoAgendamentoPage() {
             </div>
           )}
 
-          {/* ETAPA 2: Especialidade e Profissional */}
+          {/* ETAPA 2: Especialidade e Profissional (R011) */}
           {step === 2 && (
             <div className="space-y-6">
+              
+              {/* Escolha de Categoria Profissional */}
               <div className="space-y-3">
-                <h3 className="font-heading font-bold text-lg text-foreground">
-                  Selecione a Especialidade ({tipo === "consulta" ? "Consulta" : "Exame"})
+                <h3 className="font-heading font-bold text-sm text-foreground uppercase tracking-wide text-muted-foreground">
+                  Selecione a Categoria Profissional
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {especialidades.map((esp) => (
-                    <button
-                      key={esp}
-                      type="button"
-                      onClick={() => setEspecialidade(esp)}
-                      className={`p-3 rounded-lg border text-xs font-semibold text-center truncate transition-all cursor-pointer ${
-                        especialidade === esp
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border hover:bg-muted"
-                      }`}
-                    >
-                      {esp}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORIAS_PROFISSIONAIS.map((cat) => {
+                    const CatIcon = cat.icon;
+                    const isSelected = categoriaSel === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setCategoriaSel(cat.id);
+                          setEspecialidade("");
+                          setProfissional(null);
+                        }}
+                        className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-2.5 cursor-pointer ${
+                          isSelected
+                            ? "border-primary bg-primary/5 text-primary shadow-xs"
+                            : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <CatIcon className={`h-6 w-6 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                          {isSelected && <span className="h-2 w-2 rounded-full bg-primary" />}
+                        </div>
+                        <div>
+                          <span className="block font-bold text-sm text-foreground">{cat.nome}</span>
+                          <span className="block text-[11px] text-muted-foreground mt-0.5 leading-tight">{cat.desc}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Escolha da Especialidade (R011) */}
+              {categoriaSel && (
+                <div className="space-y-4 pt-4 border-t border-border animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="font-heading font-bold text-lg text-foreground">
+                      Selecione a Especialidade de {categoriaSel}
+                    </h3>
+                    
+                    {/* Filtro por Palavras-chave */}
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar especialidade..."
+                        value={buscaEspecialidade}
+                        onChange={(e) => setBuscaEspecialidade(e.target.value)}
+                        className="pl-9 h-9"
+                      />
+                    </div>
+                  </div>
+
+                  {especialidadesFiltradas.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {especialidadesFiltradas.map((esp) => {
+                        const isSelected = especialidade === esp;
+                        const config = DESCRICOES_ESPECIALIDADES[esp] || {
+                          nomeExibicao: esp,
+                          descricao: "Atendimento de saúde especializado da Unidade Básica de Saúde."
+                        };
+
+                        return (
+                          <button
+                            key={esp}
+                            type="button"
+                            onClick={() => {
+                              setEspecialidade(esp);
+                              setProfissional(null);
+                            }}
+                            className={`p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-2 cursor-pointer ${
+                              isSelected
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "border-border hover:bg-muted"
+                            }`}
+                          >
+                            <span className="font-bold text-sm text-foreground">{config.nomeExibicao}</span>
+                            <span className="text-xs text-muted-foreground leading-normal mt-1">{config.descricao}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Sugestões de alternativas se não houver na categoria selecionada */
+                    <div className="p-5 rounded-2xl bg-muted/40 border text-center space-y-4">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Info className="h-8 w-8 text-primary" />
+                        <h4 className="font-bold text-sm text-foreground">Sem Especialidades Disponíveis</h4>
+                        <p className="text-xs max-w-sm leading-relaxed">
+                          Não encontramos especialidades de <strong>{categoriaSel}</strong> ativas na {ubs?.nome} no momento.
+                        </p>
+                      </div>
+                      
+                      <div className="flex justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCategoriaSel("Medicina");
+                            setEspecialidade("");
+                          }}
+                          className="text-xs cursor-pointer"
+                        >
+                          Ir para Medicina
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setStep(1)}
+                          className="text-xs cursor-pointer"
+                        >
+                          Trocar UBS/Unidade
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Escolha do Profissional (com redirecionamento automático) */}
               {especialidade && (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  <h3 className="font-heading font-bold text-lg text-foreground">Escolha o Profissional de Saúde</h3>
+                <div className="space-y-4 border-t border-border pt-6 animate-in fade-in duration-200">
+                  <h3 className="font-heading font-bold text-lg text-foreground">
+                    Escolha o Profissional de Saúde para {especialidade}
+                  </h3>
                   <div className="space-y-3">
                     {profissionais.length > 0 ? (
                       profissionais.map((p) => (
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => setProfissional(p)}
-                          className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between gap-4 cursor-pointer ${
+                          onClick={() => {
+                            setProfissional(p);
+                            // R011: Direciona automaticamente o usuário para a etapa de consulta de agenda
+                            setStep(3);
+                            toast.success(`Profissional ${p.nome} selecionado.`);
+                          }}
+                          className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between gap-4 cursor-pointer hover:border-primary/50 ${
                             profissional?.id === p.id
                               ? "border-primary bg-primary/5 text-primary"
                               : "border-border hover:bg-muted/50"
