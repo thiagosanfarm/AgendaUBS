@@ -14,8 +14,8 @@ export function validarCPF(cpf: string): boolean {
   for (let i = 0; i < 9; i++) {
     soma += parseInt(cleanCPF.charAt(i)) * (10 - i);
   }
-  let resto = 10 - (soma % 11);
-  let digitoVerificador1 = resto === 10 || resto === 11 ? 0 : resto;
+  let resto = soma % 11;
+  let digitoVerificador1 = resto < 2 ? 0 : 11 - resto;
 
   if (digitoVerificador1 !== parseInt(cleanCPF.charAt(9))) return false;
 
@@ -24,11 +24,12 @@ export function validarCPF(cpf: string): boolean {
   for (let i = 0; i < 10; i++) {
     soma += parseInt(cleanCPF.charAt(i)) * (11 - i);
   }
-  resto = 10 - (soma % 11);
-  let digitoVerificador2 = resto === 10 || resto === 11 ? 0 : resto;
+  resto = soma % 11;
+  let digitoVerificador2 = resto < 2 ? 0 : 11 - resto;
 
   return digitoVerificador2 === parseInt(cleanCPF.charAt(10));
 }
+
 
 /**
  * Valida o Cartão Nacional de Saúde (CNS / Cartão do SUS).

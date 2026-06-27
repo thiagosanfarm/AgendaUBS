@@ -16,5 +16,7 @@ export interface Paciente {
     cidade: string;
     uf: string;
   };
+  senha: string; // Senha criptografada/armazenada
   dataCriacao: string;
 }
+

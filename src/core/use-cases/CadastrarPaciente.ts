@@ -19,6 +19,7 @@ export interface CadastrarPacienteInput {
     cidade: string;
     uf: string;
   };
+  senha: string;
 }
 
 export class CadastrarPaciente {
@@ -46,6 +47,10 @@ export class CadastrarPaciente {
       throw new Error("Data de nascimento é obrigatória.");
     }
 
+    if (!input.senha || input.senha.length < 6) {
+      throw new Error("A senha deve conter no mínimo 6 caracteres.");
+    }
+
     // 2. Validações de unicidade no repositório
     const cpfExistente = await this.pacienteRepository.obterPorCpf(input.cpf);
     if (cpfExistente) {
@@ -63,9 +68,11 @@ export class CadastrarPaciente {
       id: `paciente-${Math.random().toString(36).substring(2, 9)}`,
       cpf: input.cpf.replace(/\D/g, ''),
       cns: input.cns.replace(/\D/g, ''),
+      senha: input.senha, // Em produção, aplicar hashing (ex: bcrypt)
       dataCriacao: new Date().toISOString()
     };
 
     return await this.pacienteRepository.salvar(novoPaciente);
   }
 }
+

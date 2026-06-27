@@ -12,13 +12,14 @@ import { InputCPF } from "@/components/forms/InputCPF";
 import { InputCNS } from "@/components/forms/InputCNS";
 import { formatarTelefone, formatarCEP } from "@/utils/formatters";
 import { validarCPF, validarCNS, validarEmail, validarTelefone } from "@/utils/validators";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function CadastroPage() {
   const router = useRouter();
   const { cadastrar } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Estados dos campos
+  // Estados dos campos pessoais
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [cpf, setCpf] = useState("");
   const [cns, setCns] = useState("");
@@ -26,6 +27,12 @@ export default function CadastroPage() {
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
   const [genero, setGenero] = useState<"masculino" | "feminino" | "outro">("masculino");
+  
+  // Senhas
+  const [senha, setSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [showSenha, setShowSenha] = useState(false);
+  const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
   
   // Endereço
   const [cep, setCep] = useState("");
@@ -117,6 +124,20 @@ export default function CadastroPage() {
       novosErros.telefone = "Telefone inválido. Insira DDD + número.";
     }
 
+    // Senha
+    if (!senha) {
+      novosErros.senha = "A senha é obrigatória.";
+    } else if (senha.length < 6) {
+      novosErros.senha = "A senha deve conter no mínimo 6 caracteres.";
+    }
+
+    // Confirmação de Senha
+    if (!confirmarSenha) {
+      novosErros.confirmarSenha = "A confirmação de senha é obrigatória.";
+    } else if (senha !== confirmarSenha) {
+      novosErros.confirmarSenha = "As senhas informadas não coincidem.";
+    }
+
     // Endereço Residencial
     if (!cep) novosErros.cep = "O CEP é obrigatório.";
     if (!logradouro) novosErros.logradouro = "O logradouro é obrigatório.";
@@ -154,6 +175,7 @@ export default function CadastroPage() {
         email,
         telefone,
         genero,
+        senha,
         endereco: {
           cep,
           logradouro,
@@ -356,6 +378,79 @@ export default function CadastroPage() {
                 {errors.email && (
                   <p className="text-[11px] font-semibold text-destructive mt-1">
                     {errors.email}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Senha e Confirmação de Senha */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="senha" className="text-xs font-semibold text-foreground">
+                  Senha * (mín. 6 caracteres)
+                </label>
+                <div className="relative">
+                  <Input
+                    id="senha"
+                    type={showSenha ? "text" : "password"}
+                    placeholder="Crie uma senha"
+                    value={senha}
+                    onChange={(e) => {
+                      setSenha(e.target.value);
+                      if (errors.senha) setErrors(prev => ({ ...prev, senha: "" }));
+                    }}
+                    className="pr-10"
+                    aria-invalid={!!errors.senha}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSenha(!showSenha)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    disabled={isSubmitting}
+                    tabIndex={-1}
+                  >
+                    {showSenha ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
+                {errors.senha && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.senha}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="confirmarSenha" className="text-xs font-semibold text-foreground">
+                  Confirmar Senha *
+                </label>
+                <div className="relative">
+                  <Input
+                    id="confirmarSenha"
+                    type={showConfirmarSenha ? "text" : "password"}
+                    placeholder="Repita a senha"
+                    value={confirmarSenha}
+                    onChange={(e) => {
+                      setConfirmarSenha(e.target.value);
+                      if (errors.confirmarSenha) setErrors(prev => ({ ...prev, confirmarSenha: "" }));
+                    }}
+                    className="pr-10"
+                    aria-invalid={!!errors.confirmarSenha}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmarSenha(!showConfirmarSenha)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    disabled={isSubmitting}
+                    tabIndex={-1}
+                  >
+                    {showConfirmarSenha ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
+                {errors.confirmarSenha && (
+                  <p className="text-[11px] font-semibold text-destructive mt-1">
+                    {errors.confirmarSenha}
                   </p>
                 )}
               </div>

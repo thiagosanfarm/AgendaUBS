@@ -38,6 +38,15 @@ export class LocalStoragePacienteRepository implements IPacienteRepository {
     return paciente || null;
   }
 
+  async obterPorEmail(email: string): Promise<Paciente | null> {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const cleanEmail = email.trim().toLowerCase();
+    const pacientes = this.obterTodos();
+    const paciente = pacientes.find(p => p.email.trim().toLowerCase() === cleanEmail);
+    return paciente || null;
+  }
+
+
   async salvar(paciente: Paciente): Promise<Paciente> {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const pacientes = this.obterTodos();
