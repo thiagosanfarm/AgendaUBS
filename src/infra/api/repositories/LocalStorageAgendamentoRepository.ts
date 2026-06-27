@@ -126,4 +126,21 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
 
     return horariosDisponiveis;
   }
+
+  async listarTodos(): Promise<Agendamento[]> {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    return this.obterTodos();
+  }
+
+  async listarPorProfissional(profissionalId: string): Promise<Agendamento[]> {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const agendamentos = this.obterTodos();
+    return agendamentos
+      .filter(a => a.profissionalId === profissionalId)
+      .sort((a, b) => {
+        const dataA = new Date(`${a.data}T${a.horario}:00`);
+        const dataB = new Date(`${b.data}T${b.horario}:00`);
+        return dataA.getTime() - dataB.getTime(); // Ordem cronológica dos atendimentos
+      });
+  }
 }

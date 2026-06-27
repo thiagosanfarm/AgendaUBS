@@ -7,4 +7,6 @@ export interface IAgendamentoRepository {
   salvar(agendamento: Omit<Agendamento, 'id' | 'status' | 'dataCriacao'>): Promise<Agendamento>;
   atualizarStatus(id: string, status: StatusAgendamento, motivoCancelamento?: string): Promise<Agendamento>;
   obterHorariosDisponiveis(ubsId: string, profissionalId: string, data: string): Promise<string[]>;
+  listarTodos(): Promise<Agendamento[]>;
+  listarPorProfissional(profissionalId: string): Promise<Agendamento[]>;
 }

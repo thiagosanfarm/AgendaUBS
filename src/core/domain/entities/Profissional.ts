@@ -16,4 +16,6 @@ export interface Profissional {
   ubsId: string; // ID da UBS onde o profissional atende
   cpf?: string;
   horariosAtendimento?: HorarioAtendimento[];
+  senha?: string; // Senha para login do profissional
+  email?: string; // E-mail para login do profissional
 }

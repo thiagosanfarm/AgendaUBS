@@ -382,4 +382,24 @@ export class MockProfissionalRepository implements IProfissionalRepository {
     });
     return prof || null;
   }
+
+  async obterPorIdentificador(identificador: string): Promise<Profissional | null> {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const lista = obterListaProfissionais();
+    const limpo = identificador.replace(/\D/g, ""); // Remove pontos/traços para CPF
+    
+    const prof = lista.find(p => {
+      const bateCpf = limpo && p.cpf && p.cpf.replace(/\D/g, "") === limpo;
+      const bateReg = p.registroProfissional.numero === identificador;
+      
+      // Gera e-mail fictício caso o profissional mockado não o tenha explicitamente
+      const emailPadrao = `${p.nome.toLowerCase().replace(/\s+/g, ".").normalize("NFD").replace(/[\u0300-\u036f]/g, "")}@sus.gov.br`;
+      const bateEmail = p.email 
+        ? p.email.toLowerCase() === identificador.toLowerCase()
+        : emailPadrao === identificador.toLowerCase();
+        
+      return bateCpf || bateReg || bateEmail;
+    });
+    return prof || null;
+  }
 }

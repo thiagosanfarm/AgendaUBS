@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, User, Stethoscope, Shield } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [identificador, setIdentificador] = useState("");
   const [senha, setSenha] = useState("");
   const [lembrar, setLembrar] = useState(false);
+  const [tipoUsuarioForm, setTipoUsuarioForm] = useState<"paciente" | "profissional" | "administrador">("paciente");
   
   // Controle de UX e segurança
   const [showSenha, setShowSenha] = useState(false);
@@ -40,7 +41,13 @@ export default function LoginPage() {
     const novosErros: Record<string, string> = {};
 
     if (!identificador.trim()) {
-      novosErros.identificador = "Por favor, informe seu CPF ou E-mail.";
+      if (tipoUsuarioForm === "paciente") {
+        novosErros.identificador = "Por favor, informe seu CPF ou E-mail.";
+      } else if (tipoUsuarioForm === "profissional") {
+        novosErros.identificador = "Por favor, informe seu Registro Profissional, CPF ou E-mail.";
+      } else {
+        novosErros.identificador = "Por favor, informe seu CPF ou E-mail corporativo.";
+      }
     }
 
     if (!senha) {
@@ -59,22 +66,16 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    // Limpa erros anteriores de login
-    setErrors(prev => {
-      const { loginError, ...rest } = prev;
-      return rest;
-    });
+    setErrors({});
 
     try {
-      await login(identificador, senha, lembrar);
+      await login(identificador, senha, tipoUsuarioForm, lembrar);
       toast.success("Login efetuado com sucesso!");
       router.push("/painel");
     } catch (err: any) {
-      // Critério de Aceitação: Exibir mensagem genérica de erro sem informar qual dado está incorreto
-      setErrors(prev => ({
-        ...prev,
-        loginError: "Usuário ou senha incorretos. Verifique suas credenciais e tente novamente."
-      }));
+      setErrors({
+        loginError: err.message || "Usuário ou senha incorretos. Verifique suas credenciais e tente novamente."
+      });
       toast.error("Falha na autenticação.");
     } finally {
       setIsSubmitting(false);
@@ -83,19 +84,78 @@ export default function LoginPage() {
 
   return (
     <Card className="border-border shadow-lg shadow-black/5 bg-card/75 backdrop-blur-md animate-in fade-in duration-300">
+      
+      {/* Abas Superiores de Seleção de Tipo de Login */}
+      <div className="flex border-b border-border bg-muted/40 rounded-t-xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {
+            setTipoUsuarioForm("paciente");
+            setSenha("");
+            setErrors({});
+          }}
+          className={`flex-1 py-3.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 cursor-pointer ${
+            tipoUsuarioForm === "paciente"
+              ? "bg-card border-b-primary text-primary"
+              : "border-b-transparent text-muted-foreground hover:bg-muted/65 hover:text-foreground"
+          }`}
+        >
+          <User className="h-4 w-4" />
+          Paciente
+        </button>
+        
+        <button
+          type="button"
+          onClick={() => {
+            setTipoUsuarioForm("profissional");
+            setSenha("");
+            setErrors({});
+          }}
+          className={`flex-1 py-3.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 cursor-pointer ${
+            tipoUsuarioForm === "profissional"
+              ? "bg-card border-b-primary text-primary"
+              : "border-b-transparent text-muted-foreground hover:bg-muted/65 hover:text-foreground"
+          }`}
+        >
+          <Stethoscope className="h-4 w-4" />
+          Profissional
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setTipoUsuarioForm("administrador");
+            setSenha("");
+            setErrors({});
+          }}
+          className={`flex-1 py-3.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 cursor-pointer ${
+            tipoUsuarioForm === "administrador"
+              ? "bg-card border-b-primary text-primary"
+              : "border-b-transparent text-muted-foreground hover:bg-muted/65 hover:text-foreground"
+          }`}
+        >
+          <Shield className="h-4 w-4" />
+          Gestor / Admin
+        </button>
+      </div>
+
       <CardHeader className="space-y-1">
         <CardTitle className="text-xl font-bold tracking-tight text-center sm:text-left">
-          Acesse sua Conta
+          {tipoUsuarioForm === "paciente" && "Portal do Paciente"}
+          {tipoUsuarioForm === "profissional" && "Área do Profissional"}
+          {tipoUsuarioForm === "administrador" && "Portal de Gestão & TI"}
         </CardTitle>
         <CardDescription className="text-center sm:text-left">
-          Entre com seu CPF ou E-mail e senha para gerenciar seus agendamentos.
+          {tipoUsuarioForm === "paciente" && "Faça login com seu CPF ou E-mail para marcar consultas e exames."}
+          {tipoUsuarioForm === "profissional" && "Acesse a agenda de atendimento médico/enfermagem com seu Registro Profissional."}
+          {tipoUsuarioForm === "administrador" && "Acesse as configurações da UBS e cadastro de equipes de saúde."}
         </CardDescription>
       </CardHeader>
       
       <form onSubmit={handleSubmit} noValidate>
         <CardContent className="space-y-4">
           
-          {/* Banner de Erro Genérico (Segurança e UX) */}
+          {/* Banner de Erro Genérico */}
           {errors.loginError && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-medium flex items-start gap-2.5 border border-destructive/20 animate-in shake duration-300">
               <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
@@ -106,12 +166,18 @@ export default function LoginPage() {
           {/* Campo Identificador */}
           <div className="space-y-1.5">
             <label htmlFor="identificador" className="text-xs font-semibold text-foreground">
-              CPF ou E-mail *
+              {tipoUsuarioForm === "paciente" && "CPF ou E-mail *"}
+              {tipoUsuarioForm === "profissional" && "Nº Registro, CPF ou E-mail *"}
+              {tipoUsuarioForm === "administrador" && "CPF ou E-mail Corporativo *"}
             </label>
             <Input
               id="identificador"
               type="text"
-              placeholder="Digite seu CPF ou E-mail"
+              placeholder={
+                tipoUsuarioForm === "paciente" ? "Digite seu CPF ou E-mail" :
+                tipoUsuarioForm === "profissional" ? "Ex: 123456 (CRM/COREN/CRO) ou e-mail" :
+                "Digite seu CPF ou e-mail corporativo"
+              }
               value={identificador}
               onChange={(e) => {
                 setIdentificador(e.target.value);
@@ -159,9 +225,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowSenha(!showSenha)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none"
                 disabled={isSubmitting}
-                tabIndex={-1}
               >
                 {showSenha ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
               </button>
@@ -173,42 +238,49 @@ export default function LoginPage() {
             )}
           </div>
 
-          {/* Opção Lembrar Acesso */}
-          <div className="flex items-center space-x-2 pt-1 select-none">
-            <Checkbox
-              id="lembrar"
-              checked={lembrar}
-              onCheckedChange={(checked) => setLembrar(checked === true)}
-              disabled={isSubmitting}
-            />
-            <label
-              htmlFor="lembrar"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-            >
-              Lembrar meu acesso neste dispositivo
-            </label>
+          {/* Lembrar Acesso & Banner Informativo de senha para Mocks de profissional */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="lembrar"
+                checked={lembrar}
+                onCheckedChange={(checked) => setLembrar(!!checked)}
+                disabled={isSubmitting}
+              />
+              <label
+                htmlFor="lembrar"
+                className="text-xs font-medium text-muted-foreground cursor-pointer select-none"
+              >
+                Lembrar acesso
+              </label>
+            </div>
           </div>
 
-        </CardContent>
+          {tipoUsuarioForm === "profissional" && (
+            <div className="p-3 bg-muted/40 rounded-lg border text-[11px] text-muted-foreground leading-normal">
+              💡 **Dica de Teste (Profissional):** Para logar com um profissional do banco simulado (ex: Dr. Carlos Silva - Clínico Geral), use o identificador **`123456`** e a senha **`123456`**.
+            </div>
+          )}
 
-        <CardFooter className="flex flex-col gap-4 border-t border-border pt-4">
-          <Button 
-            type="submit" 
-            className="w-full font-semibold cursor-pointer shadow-sm shadow-primary/10" 
+        </CardContent>
+        
+        <CardFooter className="flex flex-col gap-4 border-t border-border/50 p-6 bg-muted/5">
+          <Button
+            type="submit"
+            className="w-full font-semibold cursor-pointer shadow-xs"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Entrando..." : "Entrar no Sistema"}
+            {isSubmitting ? "Autenticando..." : "Entrar no Sistema"}
           </Button>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Ainda não tem cadastro?{" "}
-            <Link 
-              href="/cadastro" 
-              className="text-primary font-semibold hover:underline"
-            >
-              Criar Cartão SUS Digital
-            </Link>
-          </p>
+          {tipoUsuarioForm === "paciente" && (
+            <p className="text-xs text-center text-muted-foreground">
+              Ainda não tem cadastro?{" "}
+              <Link href="/cadastro" className="font-semibold text-primary hover:underline">
+                Cadastre-se aqui
+              </Link>
+            </p>
+          )}
         </CardFooter>
       </form>
     </Card>

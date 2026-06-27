@@ -7,4 +7,5 @@ export interface IProfissionalRepository {
   listarEspecialidadesDisponiveis(ubsId: string): Promise<string[]>;
   cadastrar(profissional: Profissional): Promise<void>;
   obterPorCpfOuRegistro(cpf?: string, registro?: string): Promise<Profissional | null>;
+  obterPorIdentificador(identificador: string): Promise<Profissional | null>;
 }
