@@ -13,6 +13,10 @@ import { InputCNS } from "@/components/forms/InputCNS";
 import { formatarTelefone, formatarCEP } from "@/utils/formatters";
 import { validarCPF, validarCNS, validarEmail, validarTelefone } from "@/utils/validators";
 import { Eye, EyeOff } from "lucide-react";
+import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
+import { identificarUbsPorEndereco, registrarVinculoUbs } from "@/utils/ubs-matcher";
+
+const ubsRepository = new MockUbsRepository();
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -167,7 +171,12 @@ export default function CadastroPage() {
     setIsSubmitting(true);
 
     try {
-      await cadastrar({
+      // 1. Identificar automaticamente a UBS correspondente
+      const ubss = await ubsRepository.listarTodas();
+      const ubsCorrespondente = identificarUbsPorEndereco(bairro, cep, cidade, ubss);
+
+      // 2. Realizar cadastro
+      const pacienteCriado = await cadastrar({
         nomeCompleto,
         cpf,
         cns,
@@ -185,7 +194,21 @@ export default function CadastroPage() {
           cidade,
           uf,
         },
+        ubsId: ubsCorrespondente?.id // Realiza a vinculação automática no cadastro
       });
+
+      // 3. Registrar o vínculo no histórico se identificada
+      if (ubsCorrespondente) {
+        registrarVinculoUbs(
+          pacienteCriado.id, 
+          null, 
+          ubsCorrespondente.id, 
+          "Vinculação automática realizada no cadastro com base no endereço residencial."
+        );
+        toast.success(`Unidade vinculada automaticamente: ${ubsCorrespondente.nome}`);
+      } else {
+        toast.warning("Atenção: Não identificamos uma UBS de cobertura padrão para seu endereço. Você poderá atualizar seus dados no Perfil.");
+      }
 
       toast.success("Cadastro realizado com sucesso! Bem-vindo ao AgendaUBS.");
       router.push("/painel");

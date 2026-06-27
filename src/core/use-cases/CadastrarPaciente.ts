@@ -20,6 +20,7 @@ export interface CadastrarPacienteInput {
     uf: string;
   };
   senha: string;
+  ubsId?: string;
 }
 
 export class CadastrarPaciente {

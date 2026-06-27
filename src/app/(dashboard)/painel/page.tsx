@@ -409,8 +409,9 @@ export default function PainelPage() {
           <h2 className="font-heading font-bold text-2xl md:text-3xl tracking-tight">
             Olá, {paciente?.nomeCompleto?.split(" ")[0]}!
           </h2>
-          <p className="text-primary-foreground/80 text-sm mt-1 font-medium">
-            Seja bem-vindo ao portal digital de agendamentos da rede de saúde.
+          <p className="text-primary-foreground/80 text-xs mt-1.5 font-medium leading-relaxed">
+            Seja bem-vindo ao portal digital de agendamentos. <br />
+            Unidade Referenciada: **{todasUbs.find(u => u.id === paciente?.ubsId)?.nome || "Não identificada (Corrija seu endereço no Perfil)"}**
           </p>
         </div>
         <div className="bg-white/10 backdrop-blur-xs rounded-xl px-4 py-2 text-right self-start md:self-auto">
