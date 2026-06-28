@@ -1,4 +1,4 @@
-export type StatusAgendamento = 'agendado' | 'cancelado' | 'realizado' | 'ausente';
+export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente';
 export type TipoAgendamento = 'consulta' | 'exame';
 
 export interface Agendamento {

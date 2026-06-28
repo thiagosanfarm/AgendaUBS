@@ -24,7 +24,8 @@ import {
   ShieldCheck,
   Activity,
   Users,
-  AlertCircle
+  AlertCircle,
+  FileCheck
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,8 +68,9 @@ export default function PainelPage() {
       agendamentoRepository
         .listarPorPaciente(paciente.id)
         .then((lista) => {
+          // Inclui agendamentos ativos que estejam agendados ou solicitados (R013)
           const ativos = lista
-            .filter((a) => a.status === "agendado")
+            .filter((a) => a.status === "agendado" || a.status === "solicitado")
             .sort((a, b) => {
               const dataA = new Date(`${a.data}T${a.horario}:00`);
               const dataB = new Date(`${b.data}T${b.horario}:00`);
@@ -126,6 +128,8 @@ export default function PainelPage() {
   // VISUALIZAÇÃO 1: PROFISSIONAL DE SAÚDE
   // -------------------------------------------------------------
   if (tipoUsuario === "profissional" && profissional) {
+    const isAcs = profissional.especialidade === "Agente Comunitário de Saúde";
+
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
         
@@ -148,7 +152,72 @@ export default function PainelPage() {
           </div>
         </div>
 
-        {/* Agenda de Consultas/Procedimentos do Profissional */}
+        {/* Ações do Profissional (Agendamento Assistido R014) */}
+        <section className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link href="/painel/agendamento-assistido" className="group">
+              <Card className="hover:border-blue-600 hover:bg-blue-500/5 transition-all duration-300 shadow-xs h-full">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0">
+                      <CalendarPlus className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-bold text-foreground text-xs group-hover:text-blue-700 transition-colors flex items-center gap-1">
+                        Agendamento Assistido (Regulação)
+                        <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Efetue agendamentos em nome dos pacientes de sua unidade.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            {/* Apenas ACS tem link direto para Visitas, Médicos podem acessar regulação de vagas */}
+            {isAcs ? (
+              <Link href="/acs" className="group">
+                <Card className="hover:border-blue-600 hover:bg-blue-500/5 transition-all duration-300 shadow-xs h-full">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0">
+                        <Users className="h-4.5 w-4.5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-foreground text-xs group-hover:text-blue-700 transition-colors flex items-center gap-1">
+                          Visitas em Campo (ACS)
+                          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Efetue o cadastramento residencial e acompanhamento territorial.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : (
+              <Link href="/painel/regulacao" className="group">
+                <Card className="hover:border-blue-600 hover:bg-blue-500/5 transition-all duration-300 shadow-xs h-full">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0">
+                        <FileCheck className="h-4.5 w-4.5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-foreground text-xs group-hover:text-blue-700 transition-colors flex items-center gap-1">
+                          Regulação de Vagas
+                          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Aprove ou recuse solicitações de agendamentos pendentes.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+          </div>
+        </section>
+
+        {/* Agenda de Atendimentos */}
         <section className="space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <CalendarRange className="h-4 w-4 text-blue-600" />
@@ -191,11 +260,12 @@ export default function PainelPage() {
                           </td>
                           <td className="py-3.5 px-2">
                             <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              item.status === "solicitado" ? "bg-amber-50 text-amber-600 border border-amber-200" :
                               item.status === "agendado" ? "bg-blue-50 text-blue-600 border border-blue-200" :
                               item.status === "realizado" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
                               "bg-destructive/10 text-destructive border border-destructive/20"
                             }`}>
-                              {item.status}
+                              {item.status === "solicitado" ? "pendente" : item.status}
                             </span>
                           </td>
                           <td className="py-3.5 px-2 text-right">
@@ -218,6 +288,8 @@ export default function PainelPage() {
                                   Cancelar
                                 </Button>
                               </div>
+                            ) : item.status === "solicitado" ? (
+                              <span className="text-[10px] text-amber-600 font-semibold italic">Aguardando Regulação</span>
                             ) : (
                               <span className="text-[10px] text-muted-foreground font-semibold italic">Finalizado</span>
                             )}
@@ -249,6 +321,7 @@ export default function PainelPage() {
   if (tipoUsuario === "administrador" && paciente) {
     const agendamentosHoje = todosAgendamentosUbs.filter(a => a.data === hojeIso && a.status === "agendado");
     const totalAtivos = todosAgendamentosUbs.filter(a => a.status === "agendado").length;
+    const totalSolicitados = todosAgendamentosUbs.filter(a => a.status === "solicitado").length;
     const totalCancelados = todosAgendamentosUbs.filter(a => a.status === "cancelado").length;
 
     return (
@@ -291,11 +364,11 @@ export default function PainelPage() {
           <Card className="border-border">
             <CardContent className="p-5 flex items-center justify-between">
               <div>
-                <span className="block text-xs font-semibold text-muted-foreground uppercase">Total de Agendas Ativas</span>
-                <span className="block text-2xl font-bold text-foreground mt-1">{totalAtivos}</span>
+                <span className="block text-xs font-semibold text-muted-foreground uppercase">Solicitações Pendentes</span>
+                <span className="block text-2xl font-bold text-amber-600 mt-1">{totalSolicitados}</span>
               </div>
-              <div className="h-10 w-10 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center">
-                <CalendarRange className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5" />
               </div>
             </CardContent>
           </Card>
@@ -303,11 +376,11 @@ export default function PainelPage() {
           <Card className="border-border">
             <CardContent className="p-5 flex items-center justify-between">
               <div>
-                <span className="block text-xs font-semibold text-muted-foreground uppercase">Total de Cancelamentos</span>
-                <span className="block text-2xl font-bold text-destructive mt-1">{totalCancelados}</span>
+                <span className="block text-xs font-semibold text-muted-foreground uppercase">Total de Agendas Ativas</span>
+                <span className="block text-2xl font-bold text-foreground mt-1">{totalAtivos}</span>
               </div>
-              <div className="h-10 w-10 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center">
-                <XCircle className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                <CalendarRange className="h-5 w-5" />
               </div>
             </CardContent>
           </Card>
@@ -319,7 +392,7 @@ export default function PainelPage() {
             Ações e Cadastros Administrativos
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link href="/painel/profissionais/novo" className="group">
               <Card className="hover:border-emerald-600 hover:bg-emerald-500/5 transition-all duration-300 h-full flex flex-col justify-between">
                 <CardContent className="p-5">
@@ -349,6 +422,26 @@ export default function PainelPage() {
                 </CardContent>
               </Card>
             </Link>
+
+            <Link href="/painel/regulacao" className="group">
+              <Card className="hover:border-emerald-600 hover:bg-emerald-500/5 transition-all duration-300 h-full flex flex-col justify-between relative">
+                {totalSolicitados > 0 && (
+                  <span className="absolute -top-2.5 -right-2 bg-amber-500 text-white font-extrabold text-[10px] h-5 w-5 rounded-full flex items-center justify-center animate-bounce shadow-md">
+                    {totalSolicitados}
+                  </span>
+                )}
+                <CardContent className="p-5">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-200">
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <h4 className="font-bold text-foreground text-sm mt-4 group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
+                    Regulação de Vagas
+                    <ArrowRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">Aprove ou recuse solicitações de agendamentos pendentes de pacientes.</p>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </section>
 
@@ -366,8 +459,10 @@ export default function PainelPage() {
                     <div key={item.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${idx > 0 && "pt-3.5"}`}>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 uppercase">
-                            {item.status}
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                            item.status === "solicitado" ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600"
+                          }`}>
+                            {item.status === "solicitado" ? "pendente" : item.status}
                           </span>
                           <span className="text-xs font-bold text-foreground">
                             {item.especialidade}
@@ -508,6 +603,11 @@ export default function PainelPage() {
                         <span className="text-sm font-semibold text-foreground">
                           {proximoAgendamento.especialidade}
                         </span>
+                        {proximoAgendamento.status === "solicitado" && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 uppercase animate-pulse">
+                            Pendente de Regulação
+                          </span>
+                        )}
                       </div>
                       
                       <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -585,6 +685,7 @@ export default function PainelPage() {
               ) : agendamentosRecentes.length > 0 ? (
                 <div className="divide-y divide-border">
                   {agendamentosRecentes.map((agendamento) => {
+                    const isSolicitado = agendamento.status === "solicitado";
                     const isAgendado = agendamento.status === "agendado";
                     const isRealizado = agendamento.status === "realizado";
                     const isCancelado = agendamento.status === "cancelado";
@@ -592,38 +693,36 @@ export default function PainelPage() {
                     return (
                       <div key={agendamento.id} className="py-3.5 first:pt-0 last:pb-0 flex items-start gap-3">
                         <div className="mt-0.5">
+                          {isSolicitado && <Clock className="h-4.5 w-4.5 text-amber-500" />}
                           {isAgendado && <Clock className="h-4.5 w-4.5 text-blue-500" />}
                           {isRealizado && <CheckCircle2 className="h-4.5 w-4.5 text-emerald-500" />}
                           {isCancelado && <XCircle className="h-4.5 w-4.5 text-destructive" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <h5 className="font-semibold text-foreground text-xs truncate">
+                            <span className="text-xs font-bold text-foreground truncate block">
                               {agendamento.especialidade}
-                            </h5>
-                            <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
-                              {formatarDataBr(agendamento.data)}
+                            </span>
+                            <span className={`inline-block text-[8px] font-extrabold px-1.5 py-0.5 rounded-sm uppercase tracking-wide ${
+                              isSolicitado ? "bg-amber-100 text-amber-800" :
+                              isAgendado ? "bg-blue-100 text-blue-800" :
+                              isRealizado ? "bg-emerald-100 text-emerald-800" :
+                              "bg-destructive/10 text-destructive"
+                            }`}>
+                              {isSolicitado ? "pendente" : agendamento.status}
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {agendamento.profissionalNome} • {agendamento.ubsNome}
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            {formatarDataBr(agendamento.data)} às {agendamento.horario} • {agendamento.ubsNome}
                           </p>
-                          <span className={`inline-block text-[9px] font-semibold px-2 py-0.2 rounded-full mt-1.5 capitalize ${
-                            isAgendado ? "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" :
-                            isRealizado ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" :
-                            "bg-destructive/10 text-destructive"
-                          }`}>
-                            {agendamento.status}
-                          </span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="text-center py-8 text-xs text-muted-foreground flex flex-col items-center gap-2">
-                  <FileText className="h-8 w-8 opacity-55" />
-                  <span>Nenhum histórico disponível.</span>
+                <div className="text-center py-6 text-xs text-muted-foreground">
+                  Nenhuma atividade recente registrada.
                 </div>
               )}
             </CardContent>

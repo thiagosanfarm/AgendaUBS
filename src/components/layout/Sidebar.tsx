@@ -13,7 +13,9 @@ import {
   UserPlus,
   ShieldCheck,
   Clipboard,
-  MapPin
+  MapPin,
+  CalendarCheck,
+  FileCheck
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -63,6 +65,7 @@ export function Sidebar({ className }: SidebarProps) {
   }
 
   const isAcs = profissional?.especialidade === "Agente Comunitário de Saúde";
+  const isProfissional = profissional !== null;
   const isAdmin = paciente?.papel === "administrador";
 
   if (isAdmin || isAcs) {
@@ -75,6 +78,19 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Validar Endereços",
       href: "/painel/validacoes",
       icon: MapPin,
+    });
+  }
+
+  if (isAdmin || isProfissional) {
+    menuItems.push({
+      label: "Agendamento Assistido",
+      href: "/painel/agendamento-assistido",
+      icon: CalendarCheck,
+    });
+    menuItems.push({
+      label: "Regulação de Vagas",
+      href: "/painel/regulacao",
+      icon: FileCheck,
     });
   }
 

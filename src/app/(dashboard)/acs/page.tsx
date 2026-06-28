@@ -467,6 +467,11 @@ export default function VisitasAcsPage() {
             <CardDescription>
               Busque o cidadão por nome completo ou CPF para iniciar o registro da visita em campo.
             </CardDescription>
+            <div className="mt-2.5 text-[10px] text-muted-foreground bg-muted/60 p-2.5 rounded-lg leading-relaxed flex items-start gap-2 border border-border">
+              <span>
+                🛡️ <strong>Conformidade LGPD:</strong> Em respeito à privacidade e às normas do Prontuário Eletrônico, o acesso do ACS a esta ficha está restrito a informações de localização e composição familiar. Históricos clínicos confidenciais são restritos.
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             <div className="relative">
@@ -517,6 +522,10 @@ export default function VisitasAcsPage() {
               <CardDescription>
                 Atualize as informações domiciliares do paciente durante a visita em campo.
               </CardDescription>
+              <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-full w-fit">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Acesso restrito a dados territoriais (Conformidade LGPD)
+              </div>
             </div>
             <Button
               variant="ghost"

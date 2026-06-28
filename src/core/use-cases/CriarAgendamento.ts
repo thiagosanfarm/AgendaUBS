@@ -13,6 +13,8 @@ export interface CriarAgendamentoInput {
   tipo: TipoAgendamento;
   especialidade: string;
   observacoes?: string;
+  reguladorId?: string;
+  reguladorNome?: string;
 }
 
 export class CriarAgendamento {
@@ -28,7 +30,7 @@ export class CriarAgendamento {
 
     // 2. Valida se o horário está no passado
     if (verificarHorarioNoPassado(input.data, input.horario)) {
-      throw new Error("Não é possível realizar agendamentos em datas ou horários no passado.");
+      throw new Error("Não é possível realizar agendamentos in datas ou horários no passado.");
     }
 
     // 3. Verifica a disponibilidade do horário
@@ -48,7 +50,7 @@ export class CriarAgendamento {
       (a) => a.data === input.data && a.horario === input.horario && a.status !== "cancelado"
     );
     if (conflito) {
-      throw new Error("Você já possui um agendamento marcado para este mesmo dia e horário.");
+      throw new Error("O paciente já possui um agendamento marcado para este mesmo dia e horário.");
     }
 
     // 4. Salva o agendamento no repositório
@@ -62,7 +64,12 @@ export class CriarAgendamento {
       horario: input.horario,
       tipo: input.tipo,
       especialidade: input.especialidade,
-      observacoes: input.observacoes
-    });
+      observacoes: input.observacoes,
+      ...((input.reguladorId) ? {
+        reguladorId: input.reguladorId,
+        reguladorNome: input.reguladorNome,
+        dataHorarioOperacao: new Date().toISOString()
+      } : {})
+    } as any);
   }
 }

@@ -66,4 +66,9 @@ export class LocalStoragePacienteRepository implements IPacienteRepository {
   async atualizar(paciente: Paciente): Promise<Paciente> {
     return this.salvar(paciente);
   }
+
+  async listarTodos(): Promise<Paciente[]> {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return this.obterTodos();
+  }
 }

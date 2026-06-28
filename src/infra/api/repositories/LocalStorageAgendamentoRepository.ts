@@ -62,7 +62,7 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     const novoAgendamento: Agendamento = {
       ...agendamento,
       id: `agendamento-${Math.random().toString(36).substring(2, 9)}`,
-      status: "agendado",
+      status: "solicitado",
       dataCriacao: new Date().toISOString()
     };
 
@@ -107,7 +107,7 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
 
     // Filtra os horários que já estão agendados (ativos) para o profissional naquele dia
     const horariosReservados = agendamentos
-      .filter(a => a.profissionalId === profissionalId && a.data === data && a.status === "agendado")
+      .filter(a => a.profissionalId === profissionalId && a.data === data && (a.status === "agendado" || a.status === "solicitado"))
       .map(a => a.horario);
 
     // Filtra os horários padrão removendo os reservados e os que já passaram (se for hoje)
