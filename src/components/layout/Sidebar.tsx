@@ -12,7 +12,8 @@ import {
   Activity,
   UserPlus,
   ShieldCheck,
-  Clipboard
+  Clipboard,
+  MapPin
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,11 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Visitas em Campo (ACS)",
       href: "/acs",
       icon: Clipboard,
+    });
+    menuItems.push({
+      label: "Validar Endereços",
+      href: "/painel/validacoes",
+      icon: MapPin,
     });
   }
 

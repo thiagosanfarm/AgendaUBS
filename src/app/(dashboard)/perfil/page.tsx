@@ -23,7 +23,10 @@ import {
   Building,
   AlertTriangle,
   History,
-  Clock
+  Clock,
+  Bell,
+  CheckCircle2,
+  XCircle
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,10 +51,13 @@ export default function PerfilPage() {
   const [cidade, setCidade] = useState("");
   const [uf, setUf] = useState("");
 
-  // Estados do Matcher de UBS
+  // Estados do Matcher de UBS e Solicitações R008
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
   const [ubsVinculada, setUbsVinculada] = useState<UBS | null>(null);
   const [historicoUbs, setHistoricoUbs] = useState<HistoricoVinculoUbs[]>([]);
+  
+  const [solicitacaoPendente, setSolicitacaoPendente] = useState<any | null>(null);
+  const [notificacoes, setNotificacoes] = useState<any[]>([]);
 
   // Inicializa dados
   useEffect(() => {
@@ -77,6 +83,22 @@ export default function PerfilPage() {
 
       // Carrega histórico de vinculações
       setHistoricoUbs(obterHistoricoVinculoUbs(paciente.id));
+
+      // Carrega solicitação de endereço pendente
+      const salvas = localStorage.getItem("agendaubs_solicitacoes_endereco");
+      if (salvas) {
+        const lista = JSON.parse(salvas);
+        const pend = lista.find((s: any) => s.pacienteId === paciente.id && s.status === "pendente");
+        if (pend) setSolicitacaoPendente(pend);
+      }
+
+      // Carrega notificações não lidas
+      const notifsSalvas = localStorage.getItem("agendaubs_notificacoes");
+      if (notifsSalvas) {
+        const listaNotif = JSON.parse(notifsSalvas);
+        const filtradas = listaNotif.filter((n: any) => n.pacienteId === paciente.id && !n.lida);
+        setNotificacoes(filtradas);
+      }
     }
   }, [paciente]);
 
@@ -103,11 +125,21 @@ export default function PerfilPage() {
     }
   };
 
+  const handleMarcarNotificacaoLida = (id: string) => {
+    const notifsSalvas = localStorage.getItem("agendaubs_notificacoes");
+    if (notifsSalvas) {
+      const lista = JSON.parse(notifsSalvas);
+      const atualizadas = lista.map((n: any) => n.id === id ? { ...n, lida: true } : n);
+      localStorage.setItem("agendaubs_notificacoes", JSON.stringify(atualizadas));
+      setNotificacoes(atualizadas.filter((n: any) => n.pacienteId === paciente.id && !n.lida));
+      toast.success("Mensagem arquivada.");
+    }
+  };
+
   const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
-    // Validações básicas de preenchimento
     if (!cep.trim() || !logradouro.trim() || !numero.trim() || !bairro.trim() || !cidade.trim() || !uf.trim()) {
       toast.error("Por favor, preencha todos os campos obrigatórios de endereço.");
       setIsSaving(false);
@@ -115,11 +147,66 @@ export default function PerfilPage() {
     }
 
     try {
-      // 1. Mapeia a UBS responsável com base no novo endereço editado (R007)
+      // 1. Verifica se houve alteração nos campos de endereço
+      const enderecoAlterado = 
+        paciente.endereco.cep !== cep ||
+        paciente.endereco.logradouro !== logradouro ||
+        paciente.endereco.numero !== numero ||
+        paciente.endereco.complemento !== complemento ||
+        paciente.endereco.bairro !== bairro ||
+        paciente.endereco.cidade !== cidade ||
+        paciente.endereco.uf !== uf;
+
+      // 2. Se for paciente comum e alterou o endereço, envia solicitação de alteração (R008)
+      if (paciente.papel === "paciente" && enderecoAlterado) {
+        if (solicitacaoPendente) {
+          toast.error("Você já possui uma solicitação de mudança de endereço em análise.");
+          setIsSaving(false);
+          return;
+        }
+
+        const novaSolicitacao = {
+          id: `sol-${Date.now()}`,
+          pacienteId: paciente.id,
+          pacienteNome: paciente.nomeCompleto,
+          enderecoAnterior: { ...paciente.endereco },
+          enderecoNovo: {
+            cep,
+            logradouro,
+            numero,
+            complemento,
+            bairro,
+            cidade,
+            uf,
+          },
+          dataSolicitacao: new Date().toISOString(),
+          status: "pendente" as const
+        };
+
+        const solicitacoesSalvas = localStorage.getItem("agendaubs_solicitacoes_endereco");
+        const listaSolicitacoes = solicitacoesSalvas ? JSON.parse(solicitacoesSalvas) : [];
+        listaSolicitacoes.push(novaSolicitacao);
+        localStorage.setItem("agendaubs_solicitacoes_endereco", JSON.stringify(listaSolicitacoes));
+
+        setSolicitacaoPendente(novaSolicitacao);
+
+        // Salva apenas telefone e e-mail no cadastro do paciente neste momento
+        const pacienteAtualizado = {
+          ...paciente,
+          telefone: telefone.replace(/\D/g, ""),
+          email: email.trim().toLowerCase()
+        };
+        await pacienteRepository.salvar(pacienteAtualizado);
+
+        toast.success("Solicitação de mudança de endereço enviada! Aguarde a validação da equipe.");
+        setIsEditing(false);
+        setIsSaving(false);
+        return;
+      }
+
+      // 3. Se for administrador (ou não alterou endereço), salva diretamente (Fluxo antigo/Admin)
       const ubsResponsavel = identificarUbsPorEndereco(bairro, cep, cidade, todasUbs);
       const novoUbsId = ubsResponsavel?.id || "";
-
-      // Verifica se a UBS vinculada foi alterada
       const ubsAnteriorId = paciente.ubsId || null;
       const ubsAlterada = ubsAnteriorId !== novoUbsId;
 
@@ -127,7 +214,7 @@ export default function PerfilPage() {
         ...paciente,
         telefone: telefone.replace(/\D/g, ""),
         email: email.trim().toLowerCase(),
-        ubsId: novoUbsId || undefined, // Atualiza a UBS vinculada do paciente
+        ubsId: novoUbsId || undefined,
         endereco: {
           cep,
           logradouro,
@@ -141,34 +228,24 @@ export default function PerfilPage() {
 
       await pacienteRepository.salvar(pacienteAtualizado);
       
-      // 2. Se mudou a UBS, registra no histórico de vinculação (R007)
-      if (ubsAlterada) {
-        if (novoUbsId) {
-          registrarVinculoUbs(
-            paciente.id,
-            ubsAnteriorId,
-            novoUbsId,
-            "Mudança ou atualização do endereço residencial pelo paciente."
-          );
-        }
-        
-        toast.info(
-          ubsResponsavel 
-            ? `Sua UBS de cobertura foi atualizada para: ${ubsResponsavel.nome}`
-            : "Seu endereço foi alterado, mas não identificamos nenhuma UBS correspondente."
+      if (ubsAlterada && novoUbsId && ubsResponsavel) {
+        registrarVinculoUbs(
+          paciente.id,
+          ubsAnteriorId,
+          novoUbsId,
+          "Mudança residencial homologada diretamente."
         );
+        toast.info(`Unidade vinculada: ${ubsResponsavel.nome}`);
       }
 
-      toast.success("Dados cadastrais atualizados com sucesso!");
+      toast.success("Dados atualizados com sucesso!");
       setIsEditing(false);
-      
-      // Atualiza os estados locais imediatamente para refletir na UI sem refresh
       setUbsVinculada(ubsResponsavel);
       setHistoricoUbs(obterHistoricoVinculoUbs(paciente.id));
-
+      
       setTimeout(() => {
         window.location.reload();
-      }, 800);
+      }, 500);
     } catch (err: any) {
       toast.error("Ocorreu um erro ao salvar as alterações.");
     } finally {
@@ -179,6 +256,34 @@ export default function PerfilPage() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
       
+      {/* Notificações de Aprovação/Rejeição R008 */}
+      {notificacoes.length > 0 && (
+        <section className="space-y-3">
+          {notificacoes.map((notif) => (
+            <Card key={notif.id} className="border-blue-500/20 bg-blue-500/5 shadow-xs">
+              <CardContent className="p-4 flex items-start justify-between gap-3 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <Bell className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold text-foreground">Aviso de Cadastro de Endereço</span>
+                    <p className="text-muted-foreground leading-relaxed">{notif.mensagem}</p>
+                    <span className="block text-[9px] text-muted-foreground">{formatarDataBr(notif.dataCriacao.split("T")[0])}</span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleMarcarNotificacaoLida(notif.id)}
+                  className="h-7 text-[10px] font-bold text-primary cursor-pointer hover:bg-primary/10 shrink-0"
+                >
+                  Marcar como Lida
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+      )}
+
       {/* Seção 1: Cartão SUS Digital */}
       <section className="space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -259,6 +364,20 @@ export default function PerfilPage() {
           )}
         </div>
 
+        {/* Banner de Solicitação Pendente de Endereço R008 */}
+        {solicitacaoPendente && (
+          <div className="p-4 bg-amber-500/10 text-amber-800 border border-amber-500/20 rounded-xl text-xs space-y-1">
+            <div className="flex items-center gap-1.5 font-bold">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              Solicitação de Mudança de Endereço em Análise
+            </div>
+            <p className="text-muted-foreground">
+              Você solicitou a alteração para: **{solicitacaoPendente.enderecoNovo.logradouro}, nº {solicitacaoPendente.enderecoNovo.numero} - {solicitacaoPendente.enderecoNovo.bairro}**. 
+              Aguarde a validação do Agente Comunitário de Saúde (ACS) responsável por sua área.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSalvar}>
           <Card className="border-border shadow-sm">
             <CardContent className="p-6 space-y-6">
@@ -326,7 +445,7 @@ export default function PerfilPage() {
                       onChange={(e) => setCep(formatarCEP(e.target.value))}
                       onBlur={handleCepBlur}
                       placeholder="00000-000"
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -339,7 +458,7 @@ export default function PerfilPage() {
                       id="logradouro"
                       value={logradouro}
                       onChange={(e) => setLogradouro(e.target.value)}
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -354,7 +473,7 @@ export default function PerfilPage() {
                       id="numero"
                       value={numero}
                       onChange={(e) => setNumero(e.target.value)}
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -367,7 +486,7 @@ export default function PerfilPage() {
                       id="complemento"
                       value={complemento}
                       onChange={(e) => setComplemento(e.target.value)}
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                     />
                   </div>
                 </div>
@@ -382,7 +501,7 @@ export default function PerfilPage() {
                       value={bairro}
                       onChange={(e) => setBairro(e.target.value)}
                       placeholder="Bairro do paciente"
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -395,7 +514,7 @@ export default function PerfilPage() {
                       id="cidade"
                       value={cidade}
                       onChange={(e) => setCidade(e.target.value)}
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -409,7 +528,7 @@ export default function PerfilPage() {
                       value={uf}
                       onChange={(e) => setUf(e.target.value)}
                       maxLength={2}
-                      disabled={!isEditing || isSaving}
+                      disabled={!isEditing || isSaving || !!solicitacaoPendente}
                       required
                     />
                   </div>
@@ -456,7 +575,7 @@ export default function PerfilPage() {
         </form>
       </section>
 
-      {/* Seção 3: Minha Unidade Básica de Saúde (R007) */}
+      {/* Seção 3: Minha Unidade Básica de Saúde */}
       <section className="space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <Building className="h-4.5 w-4.5 text-primary" />
@@ -464,7 +583,6 @@ export default function PerfilPage() {
         </h3>
 
         {ubsVinculada ? (
-          /* Exibição da UBS Vinculada Ativa */
           <Card className="border-border shadow-sm bg-card overflow-hidden">
             <CardHeader className="bg-primary/5 border-b border-border p-5">
               <div className="flex items-center gap-2">
@@ -508,7 +626,6 @@ export default function PerfilPage() {
             </CardContent>
           </Card>
         ) : (
-          /* Aviso de Não Identificação da UBS por dados incompletos/inválidos */
           <Card className="border-amber-500/20 bg-amber-500/5 shadow-xs">
             <CardContent className="p-5 flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -532,7 +649,7 @@ export default function PerfilPage() {
         )}
       </section>
 
-      {/* Seção 4: Histórico de Alterações de Vinculação (R007) */}
+      {/* Seção 4: Histórico de Alterações de Vinculação */}
       <section className="space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <History className="h-4.5 w-4.5 text-primary" />
@@ -551,7 +668,6 @@ export default function PerfilPage() {
 
                   return (
                     <div key={log.id} className="relative">
-                      {/* Ponto na timeline */}
                       <span className="absolute -left-[26.5px] top-1 h-3 w-3 rounded-full bg-primary border-2 border-background" />
                       
                       <div className="space-y-1">

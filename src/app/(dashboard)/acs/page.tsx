@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { LocalStoragePacienteRepository } from "@/infra/api/repositories/LocalStoragePacienteRepository";
 import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
@@ -23,7 +24,10 @@ import {
   ChevronRight,
   UserCheck,
   Search,
-  MapPinCheck
+  MapPinCheck,
+  ChevronLeft,
+  ArrowRight,
+  ShieldCheck
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +67,7 @@ const pacienteRepository = new LocalStoragePacienteRepository();
 const ubsRepository = new MockUbsRepository();
 
 export default function VisitasAcsPage() {
+  const router = useRouter();
   const { profissional, paciente } = useAuth();
   
   // Quem é o agente logado (profissional ACS ou administrador simulado)
@@ -359,6 +364,35 @@ export default function VisitasAcsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6 px-2 sm:px-0 animate-in fade-in duration-300">
       
+      {/* Barra superior de controle & Alternador */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 p-3 rounded-xl border">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/painel")}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Painel
+          </Button>
+          <span className="text-muted-foreground text-xs">/</span>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={() => router.push("/painel/validacoes")}
+            className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 cursor-pointer p-0 h-auto"
+          >
+            Validar Endereços de Pacientes
+            <ArrowRight className="h-3 w-3" />
+          </Button>
+        </div>
+        <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full self-start sm:self-auto flex items-center gap-1">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Modo Agente de Saúde
+        </span>
+      </div>
+
       {/* Cabeçalho de Controle Offline/Online */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/40 p-4 rounded-xl border border-border">
         <div>

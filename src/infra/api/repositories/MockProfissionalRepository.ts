@@ -332,7 +332,19 @@ const obterListaProfissionais = (): Profissional[] => {
     return MOCK_PROFISSIONAIS;
   }
   try {
-    return JSON.parse(saved);
+    const lista = JSON.parse(saved) as Profissional[];
+    
+    // Auto-injeção da Aline Souza (ACS) se o LocalStorage for antigo (R009)
+    const temAline = lista.some(p => p.id === "prof-aline-acs");
+    if (!temAline) {
+      const aline = MOCK_PROFISSIONAIS.find(p => p.id === "prof-aline-acs");
+      if (aline) {
+        lista.push(aline);
+        localStorage.setItem(KEY, JSON.stringify(lista));
+      }
+    }
+    
+    return lista;
   } catch {
     return MOCK_PROFISSIONAIS;
   }
