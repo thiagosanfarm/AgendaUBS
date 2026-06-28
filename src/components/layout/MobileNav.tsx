@@ -73,7 +73,7 @@ export function MobileNav() {
 
         return (
           <Link
-            key={item.href}
+            key={item.label}
             href={item.href}
             className={cn(
               "flex flex-col items-center justify-center flex-1 h-full py-2 transition-all duration-150 relative",

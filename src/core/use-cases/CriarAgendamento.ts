@@ -42,6 +42,15 @@ export class CriarAgendamento {
       throw new Error("O horário selecionado não está mais disponível.");
     }
 
+    // 3.5. Verifica agendamentos conflitantes no mesmo horário para o mesmo paciente (R013)
+    const agendamentosExistentes = await this.agendamentoRepository.listarPorPaciente(input.pacienteId);
+    const conflito = agendamentosExistentes.find(
+      (a) => a.data === input.data && a.horario === input.horario && a.status !== "cancelado"
+    );
+    if (conflito) {
+      throw new Error("Você já possui um agendamento marcado para este mesmo dia e horário.");
+    }
+
     // 4. Salva o agendamento no repositório
     return await this.agendamentoRepository.salvar({
       pacienteId: input.pacienteId,
