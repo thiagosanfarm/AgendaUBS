@@ -11,7 +11,8 @@ import {
   LogOut, 
   Activity,
   UserPlus,
-  ShieldCheck
+  ShieldCheck,
+  Clipboard
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { logout, paciente } = useAuth();
+  const { logout, paciente, profissional } = useAuth();
 
   const menuItems = [
     {
@@ -57,6 +58,17 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Cadastrar Gestor UBS",
       href: "/painel/administradores/novo",
       icon: ShieldCheck,
+    });
+  }
+
+  const isAcs = profissional?.especialidade === "Agente Comunitário de Saúde";
+  const isAdmin = paciente?.papel === "administrador";
+
+  if (isAdmin || isAcs) {
+    menuItems.push({
+      label: "Visitas em Campo (ACS)",
+      href: "/acs",
+      icon: Clipboard,
     });
   }
 

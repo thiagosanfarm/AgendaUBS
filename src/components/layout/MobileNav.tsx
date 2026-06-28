@@ -8,14 +8,17 @@ import {
   CalendarPlus, 
   CalendarRange, 
   User,
-  UserPlus
+  UserPlus,
+  Clipboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { paciente } = useAuth();
+  const { paciente, profissional } = useAuth();
+  
+  const isAcs = profissional?.especialidade === "Agente Comunitário de Saúde";
 
   const menuItems = [
     {
@@ -23,22 +26,34 @@ export function MobileNav() {
       href: "/painel",
       icon: LayoutDashboard,
     },
-    {
+  ];
+
+  if (isAcs) {
+    menuItems.push({
+      label: "Visitas",
+      href: "/acs",
+      icon: Clipboard,
+    });
+  } else {
+    menuItems.push({
       label: "Agendar",
       href: "/agendamentos/novo",
       icon: CalendarPlus,
-    },
-    {
-      label: "Agenda",
-      href: "/agendamentos",
-      icon: CalendarRange,
-    },
-    {
-      label: "Perfil",
-      href: "/perfil",
-      icon: User,
-    },
-  ];
+    });
+  }
+
+  // Para ACS, a agenda principal é a lista de visitas domiciliares em /acs
+  menuItems.push({
+    label: "Agenda",
+    href: isAcs ? "/acs" : "/agendamentos",
+    icon: CalendarRange,
+  });
+
+  menuItems.push({
+    label: "Perfil",
+    href: "/perfil",
+    icon: User,
+  });
 
   if (paciente?.papel === "administrador") {
     menuItems.push({

@@ -13,6 +13,13 @@ const MOCK_PROFISSIONAIS: Profissional[] = [
     ubsId: "ubs-centro"
   },
   {
+    id: "prof-aline-acs",
+    nome: "Aline Souza (ACS)",
+    registroProfissional: { tipo: "OUTRO", numero: "789101", uf: "SE" },
+    especialidade: "Agente Comunitário de Saúde",
+    ubsId: "ubs-centro"
+  },
+  {
     id: "prof-ana-mfc",
     nome: "Dra. Ana Souza",
     registroProfissional: { tipo: "CRM", numero: "234567", uf: "SP" },
