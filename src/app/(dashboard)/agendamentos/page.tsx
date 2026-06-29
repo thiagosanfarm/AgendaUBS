@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/LocalStorageAgendamentoRepository";
 import { LocalStorageSolicitacaoRemanejamentoRepository } from "@/infra/api/repositories/LocalStorageSolicitacaoRemanejamentoRepository";
 import { CancelarAgendamento } from "@/core/use-cases/CancelarAgendamento";
-import { Agendamento } from "@/core/domain/entities/Agendamento";
+import { Agendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
 import { SolicitacaoRemanejamento, PeriodoPreferencia } from "@/core/domain/entities/SolicitacaoRemanejamento";
 import { formatarDataBr } from "@/utils/formatters";
 import { toast } from "sonner";
@@ -22,7 +22,11 @@ import {
   Plus,
   ArrowUpRight,
   Sparkles,
-  Info
+  Info,
+  UploadCloud,
+  Trash2,
+  FileText,
+  Paperclip
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +70,86 @@ export default function AgendamentosPage() {
   const [periodoPreferencia, setPeriodoPreferencia] = useState<PeriodoPreferencia>("qualquer");
   const [diasDisponiveis, setDiasDisponiveis] = useState<string[]>([]);
   const [isSubmittingRemanejamento, setIsSubmittingRemanejamento] = useState(false);
+
+  // Estados para gerenciamento de documentos R018
+  const [agendamentoParaDocumentos, setAgendamentoParaDocumentos] = useState<Agendamento | null>(null);
+  const [tempDocumentos, setTempDocumentos] = useState<DocumentoAgendamento[]>([]);
+  const [isSavingDocumentos, setIsSavingDocumentos] = useState(false);
+
+  const handleOpenDocumentosModal = (agendamento: Agendamento) => {
+    setAgendamentoParaDocumentos(agendamento);
+    setTempDocumentos(agendamento.documentos || []);
+  };
+
+  const handleTempFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+
+    Array.from(files).forEach((file) => {
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Formato inválido: "${file.name}". Envie apenas PDF, PNG ou JPG.`);
+        return;
+      }
+      if (file.size > maxSizeBytes) {
+        toast.error(`Arquivo muito grande: "${file.name}". Limite de 5MB.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (!event.target?.result) {
+          toast.error("Arquivo inválido ou corrompido.");
+          return;
+        }
+
+        const base64Url = event.target.result as string;
+        const now = new Date();
+        const extension = file.name.split(".").pop()?.toUpperCase() || "DOC";
+
+        const newDoc: DocumentoAgendamento = {
+          id: `doc-${Math.random().toString(36).substring(2, 9)}`,
+          nome: file.name,
+          tipo: extension,
+          tamanho: file.size,
+          status: "pendente",
+          url: base64Url,
+          dataEnvio: now.toISOString().split("T")[0],
+          horarioEnvio: now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          usuarioEnvioNome: paciente?.nomeCompleto || "Paciente"
+        };
+
+        setTempDocumentos((prev) => [...prev, newDoc]);
+        toast.success(`"${file.name}" anexado.`);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = "";
+  };
+
+  const handleRemoveTempDocumento = (id: string) => {
+    setTempDocumentos((prev) => prev.filter((d) => d.id !== id));
+    toast.info("Documento removido da lista.");
+  };
+
+  const handleSaveDocumentos = async () => {
+    if (!agendamentoParaDocumentos) return;
+
+    setIsSavingDocumentos(true);
+    try {
+      await agendamentoRepository.atualizarDocumentos(agendamentoParaDocumentos.id, tempDocumentos);
+      toast.success("Documentação da solicitação atualizada com sucesso!");
+      setAgendamentoParaDocumentos(null);
+      carregarAgendamentos();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar documentos.");
+    } finally {
+      setIsSavingDocumentos(false);
+    }
+  };
 
   const carregarAgendamentos = () => {
     if (paciente) {
@@ -202,9 +286,9 @@ export default function AgendamentosPage() {
     }
   };
 
-  // Divide agendamentos em ativos (futuros/marcados) e histórico (passados ou cancelados)
-  const ativos = agendamentos.filter(a => a.status === "agendado");
-  const historico = agendamentos.filter(a => a.status !== "agendado");
+  // Divide agendamentos em ativos (futuros/marcados/solicitados) e histórico (passados ou cancelados)
+  const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado");
+  const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado");
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -234,104 +318,166 @@ export default function AgendamentosPage() {
           </div>
         ) : ativos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {ativos.map((a) => (
-              <Card key={a.id} className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 uppercase">
-                          {a.tipo}
-                        </span>
-                        <span className="text-sm font-bold text-foreground capitalize">
-                          {a.especialidade}
-                        </span>
-                      </div>
-
-                      <div className="space-y-1.5 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-blue-500" />
-                          <span>Profissional: <strong className="text-foreground">{a.profissionalNome}</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-blue-500" />
-                          <span>Unidade: <strong className="text-foreground">{a.ubsNome}</strong></span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center bg-blue-50/50 dark:bg-blue-950/20 rounded-xl p-3.5 shrink-0 text-center min-w-[100px]">
-                      <Calendar className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400 mb-1" />
-                      <span className="text-xs font-bold text-foreground">{formatarDataBr(a.data)}</span>
-                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-0.5">{a.horario}</span>
-                    </div>
-                  </div>
-
-                  {/* Detalhes do Remanejamento R017 */}
-                  {(() => {
-                    const sol = solicitacoes.find(
-                      (s) => s.agendamentoId === a.id && s.status !== "cancelado" && s.status !== "aceito"
-                    );
-
-                    if (sol) {
-                      const statusLabel = sol.status === "disponibilizado" ? "Vaga disponível!" : "Aguardando vaga...";
-                      const periodText = sol.preferenciaPeriodo ? `Período: ${sol.preferenciaPeriodo.toUpperCase()}` : "Qualquer período";
-                      const daysText = sol.diasDisponiveis && sol.diasDisponiveis.length > 0
-                        ? `Dias: ${sol.diasDisponiveis.map(d => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ")}`
-                        : "Qualquer dia";
-
-                      return (
-                        <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div className="space-y-0.5">
-                            <span className="flex items-center gap-1.5 font-bold text-primary">
-                              <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                              Fila de Remanejamento • {statusLabel}
+            {ativos.map((a) => {
+              const isSolicitado = a.status === "solicitado";
+              return (
+                <Card
+                  key={a.id}
+                  className={`border-l-4 shadow-sm hover:shadow-md transition-shadow ${
+                    isSolicitado ? "border-l-amber-500 bg-amber-500/[0.01]" : "border-l-blue-500"
+                  }`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="space-y-3 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 uppercase shrink-0">
+                            {a.tipo}
+                          </span>
+                          {isSolicitado && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase tracking-wide shrink-0">
+                              Aguardando Regulação
                             </span>
-                            <span className="block text-muted-foreground text-[10px]">
-                              {periodText} • {daysText}
+                          )}
+                          <span className="text-sm font-bold text-foreground capitalize truncate">
+                            {a.especialidade}
+                          </span>
+                        </div>
+ 
+                        <div className="space-y-1.5 text-xs sm:text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-blue-500 shrink-0" />
+                            <span className="truncate">Profissional: <strong className="text-foreground">{a.profissionalNome}</strong></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
+                            <span className="truncate">Unidade: <strong className="text-foreground">{a.ubsNome}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+ 
+                      <div className={`flex flex-col items-center justify-center rounded-xl p-3.5 shrink-0 text-center min-w-[100px] ${
+                        isSolicitado ? "bg-amber-500/5" : "bg-blue-50/50 dark:bg-blue-950/20"
+                      }`}>
+                        <Calendar className={`h-4.5 w-4.5 mb-1 ${isSolicitado ? "text-amber-500" : "text-blue-600 dark:text-blue-400"}`} />
+                        <span className="text-xs font-bold text-foreground">{formatarDataBr(a.data)}</span>
+                        <span className={`text-xs font-bold mt-0.5 ${isSolicitado ? "text-amber-500" : "text-blue-600 dark:text-blue-400"}`}>{a.horario}</span>
+                      </div>
+                    </div>
+ 
+                    {/* Exibição dos Documentos Anexados (R018) */}
+                    {isSolicitado && (
+                      <div className="mt-3.5 p-3 rounded-xl bg-muted/30 border border-border flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip className="h-4 w-4 text-amber-500 shrink-0" />
+                          <div className="min-w-0 leading-tight">
+                            <span className="block font-semibold text-foreground">Documentos da Solicitação</span>
+                            <span className="block text-[10px] text-muted-foreground">
+                              {a.documentos && a.documentos.length > 0
+                                ? `${a.documentos.length} arquivo(s) enviado(s)`
+                                : "Nenhum arquivo enviado"}
                             </span>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCancelRemanejamento(sol.id)}
-                            className="h-8 text-[11px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer px-2"
-                          >
-                            Cancelar Fila
-                          </Button>
                         </div>
+                        {a.documentos && a.documentos.length > 0 && (
+                          <div className="flex gap-1 shrink-0">
+                            {a.documentos.slice(0, 3).map((doc) => (
+                              <span
+                                key={doc.id}
+                                className="text-[9px] bg-background border px-1.5 py-0.5 rounded-md font-bold text-muted-foreground uppercase truncate max-w-[60px]"
+                                title={doc.nome}
+                              >
+                                {doc.tipo}
+                              </span>
+                            ))}
+                            {a.documentos.length > 3 && (
+                              <span className="text-[9px] bg-background border px-1.5 py-0.5 rounded-md font-bold text-muted-foreground">
+                                +{a.documentos.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+ 
+                    {/* Detalhes do Remanejamento R017 */}
+                    {(() => {
+                      const sol = solicitacoes.find(
+                        (s) => s.agendamentoId === a.id && s.status !== "cancelado" && s.status !== "aceito"
                       );
-                    } else {
-                      return null;
-                    }
-                  })()}
-
-                  <div className="border-t border-border mt-5 pt-4 flex justify-between items-center gap-2 flex-wrap">
-                    <div>
-                      {!solicitacoes.some(s => s.agendamentoId === a.id && s.status !== "cancelado" && s.status !== "aceito") && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenRemanejarModal(a)}
-                          className="text-primary border-primary/20 hover:bg-primary/10 hover:text-primary font-bold cursor-pointer gap-1"
-                        >
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                          Solicitar Remanejamento
-                        </Button>
-                      )}
+ 
+                      if (sol) {
+                        const statusLabel = sol.status === "disponibilizado" ? "Vaga disponível!" : "Aguardando vaga...";
+                        const periodText = sol.preferenciaPeriodo ? `Período: ${sol.preferenciaPeriodo.toUpperCase()}` : "Qualquer período";
+                        const daysText = sol.diasDisponiveis && sol.diasDisponiveis.length > 0
+                          ? `Dias: ${sol.diasDisponiveis.map(d => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ")}`
+                          : "Qualquer dia";
+ 
+                        return (
+                          <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="space-y-0.5">
+                              <span className="flex items-center gap-1.5 font-bold text-primary">
+                                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                                Fila de Remanejamento • {statusLabel}
+                              </span>
+                              <span className="block text-muted-foreground text-[10px]">
+                                {periodText} • {daysText}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelRemanejamento(sol.id)}
+                              className="h-8 text-[11px] font-bold text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer px-2"
+                            >
+                              Cancelar Fila
+                            </Button>
+                          </div>
+                        );
+                      } else {
+                        return null;
+                      }
+                    })()}
+ 
+                    <div className="border-t border-border mt-5 pt-4 flex justify-between items-center gap-2 flex-wrap">
+                      <div>
+                        {isSolicitado ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDocumentosModal(a)}
+                            className="text-amber-600 border-amber-500/20 hover:bg-amber-500/10 hover:text-amber-700 font-bold cursor-pointer gap-1.5 text-xs rounded-xl"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            Gerenciar Documentos
+                          </Button>
+                        ) : (
+                          !solicitacoes.some(s => s.agendamentoId === a.id && s.status !== "cancelado" && s.status !== "aceito") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenRemanejarModal(a)}
+                              className="text-primary border-primary/20 hover:bg-primary/10 hover:text-primary font-bold cursor-pointer gap-1.5 text-xs rounded-xl"
+                            >
+                              <ArrowUpRight className="h-4 w-4" />
+                              Solicitar Remanejamento
+                            </Button>
+                          )
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenCancelModal(a)}
+                        className="text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive font-semibold cursor-pointer text-xs rounded-xl"
+                      >
+                        Desmarcar Horário
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenCancelModal(a)}
-                      className="text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive font-semibold cursor-pointer"
-                    >
-                      Desmarcar Horário
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed border-2 border-border bg-transparent">
@@ -565,6 +711,111 @@ export default function AgendamentosPage() {
               className="cursor-pointer font-bold text-xs h-10 rounded-xl"
             >
               {isSubmittingRemanejamento ? "Registrando..." : "Entrar na Lista"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Modal de Gerenciamento de Documentos R018 */}
+      <Dialog open={!!agendamentoParaDocumentos} onOpenChange={() => setAgendamentoParaDocumentos(null)}>
+        <DialogContent className="sm:max-w-md border-border bg-card">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-foreground text-lg flex items-center gap-2">
+              <Paperclip className="h-5 w-5 text-primary" />
+              Documentos da Solicitação
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              Gerencie os encaminhamentos e comprovantes anexados para a consulta de **{agendamentoParaDocumentos?.especialidade}**.
+            </DialogDescription>
+          </DialogHeader>
+ 
+          <div className="space-y-4 py-3 text-xs">
+            {/* Input de Upload de Arquivo */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Adicionar Novo Arquivo</label>
+                <span className="text-[9px] text-muted-foreground font-semibold">PDF, PNG, JPG (Máx 5MB)</span>
+              </div>
+              <label className="border-2 border-dashed border-sky-100 hover:border-primary bg-muted/10 transition-all rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center gap-1 group">
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleTempFileUpload}
+                  className="hidden"
+                />
+                <UploadCloud className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all duration-200" />
+                <span className="block text-[11px] font-bold text-foreground">Selecionar ou arrastar novos arquivos</span>
+              </label>
+            </div>
+ 
+            {/* Lista dos Documentos Temporários */}
+            <div className="space-y-2.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Arquivos Anexados ({tempDocumentos.length})</label>
+              
+              {tempDocumentos.length > 0 ? (
+                <div className="space-y-2 max-h-48 overflow-y-auto divide-y divide-border border border-border bg-white dark:bg-slate-900 rounded-xl p-3">
+                  {tempDocumentos.map((doc, idx) => {
+                    const isImage = doc.tipo !== "PDF";
+                    return (
+                      <div key={doc.id} className={`flex items-center justify-between gap-3 pt-2 ${idx === 0 && "pt-0"}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isImage ? (
+                            <img
+                              src={doc.url}
+                              alt={doc.nome}
+                              className="h-8 w-8 rounded-lg object-cover border shrink-0"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
+                              <FileText className="h-4.5 w-4.5" />
+                            </div>
+                          )}
+                          <div className="min-w-0 leading-tight">
+                            <span className="block font-bold text-foreground truncate max-w-[180px]" title={doc.nome}>
+                              {doc.nome}
+                            </span>
+                            <span className="block text-[9px] text-muted-foreground uppercase">
+                              {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
+                            </span>
+                          </div>
+                        </div>
+ 
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveTempDocumento(doc.id)}
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-6 border border-dashed rounded-xl text-muted-foreground text-[11px] bg-muted/5">
+                  Nenhum documento anexado a esta solicitação.
+                </div>
+              )}
+            </div>
+          </div>
+ 
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setAgendamentoParaDocumentos(null)}
+              disabled={isSavingDocumentos}
+              className="cursor-pointer text-xs h-10 rounded-xl"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveDocumentos}
+              disabled={isSavingDocumentos}
+              className="cursor-pointer font-bold text-xs h-10 rounded-xl"
+            >
+              {isSavingDocumentos ? "Salvando..." : "Salvar Alterações"}
             </Button>
           </DialogFooter>
         </DialogContent>

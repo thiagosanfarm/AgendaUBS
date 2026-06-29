@@ -9,7 +9,7 @@ import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/Loca
 import { CriarAgendamento } from "@/core/use-cases/CriarAgendamento";
 import { UBS } from "@/core/domain/entities/UBS";
 import { Profissional } from "@/core/domain/entities/Profissional";
-import { TipoAgendamento } from "@/core/domain/entities/Agendamento";
+import { TipoAgendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
 import { formatarDataBr, formatarCEP, formatarTelefone } from "@/utils/formatters";
 import { toast } from "sonner";
 import { 
@@ -25,7 +25,11 @@ import {
   AlertTriangle,
   Info,
   CalendarDays,
-  Sparkles
+  Sparkles,
+  UploadCloud,
+  Trash2,
+  FileText,
+  Paperclip
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +75,75 @@ export default function NovoAgendamentoPage() {
   const [erroHorarios, setErroHorarios] = useState(false);
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estados e Handlers do Upload de Arquivos R018
+  const [anexos, setAnexos] = useState<DocumentoAgendamento[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
+
+    Array.from(files).forEach((file) => {
+      // 1. Validação de formato (Critério de Aceitação)
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`Formato inválido: "${file.name}". Envie apenas PDF, PNG ou JPG.`);
+        return;
+      }
+
+      // 2. Validação de tamanho (Critério de Aceitação)
+      if (file.size > maxSizeBytes) {
+        toast.error(`Arquivo muito grande: "${file.name}". O tamanho máximo é de 5MB.`);
+        return;
+      }
+
+      // 3. Leitura do arquivo para Base64 (simula upload e permite preview real!)
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (!event.target?.result) {
+          toast.error(`Falha ao carregar o arquivo "${file.name}". Arquivo corrompido ou inválido.`);
+          return;
+        }
+
+        const base64Url = event.target.result as string;
+        const now = new Date();
+        const extension = file.name.split(".").pop()?.toUpperCase() || "DOC";
+
+        const novoDoc: DocumentoAgendamento = {
+          id: `doc-${Math.random().toString(36).substring(2, 9)}`,
+          nome: file.name,
+          tipo: extension,
+          tamanho: file.size,
+          status: 'pendente',
+          url: base64Url,
+          dataEnvio: now.toISOString().split("T")[0],
+          horarioEnvio: now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+          usuarioEnvioNome: paciente?.nomeCompleto || "Paciente"
+        };
+
+        setAnexos((prev) => [...prev, novoDoc]);
+        toast.success(`"${file.name}" anexado com sucesso!`);
+      };
+
+      reader.onerror = () => {
+        toast.error(`Erro ao ler o arquivo "${file.name}".`);
+      };
+
+      reader.readAsDataURL(file);
+    });
+
+    setIsUploading(false);
+    e.target.value = "";
+  };
+
+  const handleRemoverAnexo = (id: string) => {
+    setAnexos((prev) => prev.filter((a) => a.id !== id));
+    toast.info("Documento removido.");
+  };
 
   // 1. Carrega todas as UBSs do município e define a UBS vinculada do paciente como padrão (R007)
   useEffect(() => {
@@ -168,7 +241,8 @@ export default function NovoAgendamentoPage() {
         horario: horarioSel,
         tipo: "consulta" as const,
         especialidade,
-        observacoes: ""
+        observacoes: "",
+        documentos: anexos
       });
 
       toast.success("Agendamento realizado com sucesso!");
@@ -396,6 +470,81 @@ export default function NovoAgendamentoPage() {
           )}
         </div>
 
+        {/* Upload de Documentos R018 */}
+        <div className="space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Documentação de Encaminhamento</span>
+            <span className="text-[10px] bg-sky-50 dark:bg-slate-800 text-primary dark:text-sky-400 font-bold px-2 py-0.5 rounded-full">PDF, PNG, JPG (Máx 5MB)</span>
+          </div>
+
+          {/* Area Dropzone premium */}
+          <label className="border-2 border-dashed border-sky-200 dark:border-slate-800 hover:border-primary dark:hover:border-primary bg-white dark:bg-slate-900 transition-all rounded-2xl p-6 text-center cursor-pointer flex flex-col items-center justify-center gap-2 group shadow-xs">
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg"
+              onChange={handleFileUpload}
+              className="hidden"
+              disabled={isUploading}
+            />
+            <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+              <UploadCloud className="h-5 w-5" />
+            </div>
+            <div className="space-y-0.5">
+              <span className="block text-xs font-bold text-foreground">Clique para selecionar arquivos</span>
+              <span className="block text-[10px] text-muted-foreground">Arraste e solte encaminhamentos ou solicitações aqui</span>
+            </div>
+          </label>
+
+          {/* Lista de Arquivos Anexados */}
+          {anexos.length > 0 && (
+            <div className="space-y-2 bg-white dark:bg-slate-900 border border-sky-100 dark:border-slate-800 p-3 rounded-2xl shadow-xs">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide block mb-1">Arquivos Anexados ({anexos.length})</span>
+              
+              <div className="space-y-2 divide-y divide-border/60">
+                {anexos.map((anexo, idx) => {
+                  const isImage = anexo.tipo !== "PDF";
+                  return (
+                    <div key={anexo.id} className={`flex items-center justify-between gap-3 text-xs ${idx > 0 && "pt-2"}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isImage ? (
+                          <img
+                            src={anexo.url}
+                            alt={anexo.nome}
+                            className="h-8 w-8 rounded-lg object-cover border border-border shrink-0"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
+                            <FileText className="h-4.5 w-4.5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 leading-tight">
+                          <span className="block font-bold text-foreground truncate max-w-[200px]" title={anexo.nome}>
+                            {anexo.nome}
+                          </span>
+                          <span className="block text-[9px] text-muted-foreground uppercase">
+                            {anexo.tipo} • {(anexo.tamanho / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoverAnexo(anexo.id)}
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Dica de Remanejamento R017 */}
         <div className="p-3 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-2.5 text-[11px] text-muted-foreground leading-relaxed mt-4">
           <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5 animate-pulse" />
@@ -456,6 +605,19 @@ export default function NovoAgendamentoPage() {
                 {formatarDataBr(dataSel)} às {horarioSel}
               </span>
             </div>
+            {anexos.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-dashed">
+                <span className="block text-[10px] uppercase font-bold text-muted-foreground">Documentos Anexados ({anexos.length})</span>
+                <div className="space-y-1">
+                  {anexos.map((a) => (
+                    <span key={a.id} className="block text-[10px] text-foreground font-semibold truncate flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
+                      {a.nome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex flex-row gap-2 mt-4">

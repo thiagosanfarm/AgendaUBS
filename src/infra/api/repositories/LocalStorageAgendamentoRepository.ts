@@ -1,4 +1,4 @@
-import { Agendamento, StatusAgendamento } from "@/core/domain/entities/Agendamento";
+import { Agendamento, StatusAgendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
 import { IAgendamentoRepository } from "@/core/domain/repositories/IAgendamentoRepository";
 import { verificarHorarioNoPassado } from "@/utils/date-helpers";
 
@@ -89,6 +89,29 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
       ...agendamentos[index],
       status,
       motivoCancelamento: motivoCancelamento || agendamentos[index].motivoCancelamento
+    };
+
+    agendamentos[index] = agendamentoAtualizado;
+    this.salvarTodos(agendamentos);
+
+    return agendamentoAtualizado;
+  }
+
+  async atualizarDocumentos(
+    id: string,
+    documentos: DocumentoAgendamento[]
+  ): Promise<Agendamento> {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const agendamentos = this.obterTodos();
+    const index = agendamentos.findIndex(a => a.id === id);
+
+    if (index === -1) {
+      throw new Error("Agendamento não encontrado.");
+    }
+
+    const agendamentoAtualizado = {
+      ...agendamentos[index],
+      documentos
     };
 
     agendamentos[index] = agendamentoAtualizado;

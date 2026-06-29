@@ -1,6 +1,18 @@
 export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente';
 export type TipoAgendamento = 'consulta' | 'exame';
 
+export interface DocumentoAgendamento {
+  id: string;
+  nome: string;
+  tipo: string; // Ex: 'PDF', 'PNG', 'JPG', etc.
+  tamanho: number; // Em bytes
+  status: 'pendente' | 'validado' | 'rejeitado';
+  url: string; // Base64 ou URL de preview
+  dataEnvio: string; // YYYY-MM-DD
+  horarioEnvio: string; // HH:MM
+  usuarioEnvioNome: string;
+}
+
 export interface Agendamento {
   id: string;
   pacienteId: string;
@@ -16,4 +28,5 @@ export interface Agendamento {
   motivoCancelamento?: string;
   observacoes?: string;
   dataCriacao: string; // ISO 8601
+  documentos?: DocumentoAgendamento[];
 }

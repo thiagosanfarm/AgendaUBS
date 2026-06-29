@@ -35,10 +35,13 @@ import {
   Timer,
   Activity,
   ListTodo,
-  Info
+  Info,
+  Paperclip,
+  Eye
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const agendamentoRepository = new LocalStorageAgendamentoRepository();
 const pacienteRepository = new LocalStoragePacienteRepository();
@@ -60,6 +63,7 @@ export default function RegulacaoVagasPage() {
   // Estados de dados
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [visualizarDoc, setVisualizarDoc] = useState<{ url: string; nome: string; tipo: string } | null>(null);
   const [remanejamentos, setRemanejamentos] = useState<SolicitacaoRemanejamento[]>([]);
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
   const [loading, setLoading] = useState(true);
@@ -322,6 +326,63 @@ export default function RegulacaoVagasPage() {
                             <span className="block text-[10px] uppercase font-bold text-muted-foreground">Data e Horário Solicitado:</span>
                             <span className="block text-primary font-bold">{formatarDataBr(item.data)} às {item.horario}</span>
                           </div>
+                        </div>
+                        {/* Documentação de Encaminhamento Anexada (R018) */}
+                        <div className="pt-3 border-t border-dashed space-y-2">
+                          <span className="block text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
+                            <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
+                            Documentação Comprobatória Anexada
+                          </span>
+ 
+                          {item.documentos && item.documentos.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {item.documentos.map((doc) => {
+                                const isPdf = doc.tipo === "PDF";
+                                return (
+                                  <div
+                                    key={doc.id}
+                                    className="p-2 border rounded-xl flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      {isPdf ? (
+                                        <div className="h-9 w-9 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
+                                          <FileText className="h-4.5 w-4.5" />
+                                        </div>
+                                      ) : (
+                                        <img
+                                          src={doc.url}
+                                          alt={doc.nome}
+                                          className="h-9 w-9 rounded-lg object-cover border shrink-0 bg-muted"
+                                        />
+                                      )}
+                                      <div className="min-w-0 leading-tight">
+                                        <span className="block font-bold text-foreground truncate max-w-[120px]" title={doc.nome}>
+                                          {doc.nome}
+                                        </span>
+                                        <span className="block text-[9px] text-muted-foreground uppercase">
+                                          {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
+                                        </span>
+                                      </div>
+                                    </div>
+ 
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
+                                      className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
+                                      title="Visualizar documento"
+                                    >
+                                      <Eye className="h-4.5 w-4.5" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-amber-500/5 text-amber-700 dark:text-amber-400 border border-amber-500/10 rounded-xl text-[11px] font-medium flex items-center gap-2">
+                              ⚠️ Nenhum documento foi anexado a esta solicitação.
+                            </div>
+                          )}
                         </div>
                       </CardContent>
 
@@ -609,6 +670,56 @@ export default function RegulacaoVagasPage() {
         </section>
       )}
 
+      {/* Lightbox de Visualização de Documentos R018 */}
+      <Dialog open={!!visualizarDoc} onOpenChange={() => setVisualizarDoc(null)}>
+        <DialogContent className="max-w-2xl rounded-2xl p-5 border bg-card">
+          <DialogHeader className="text-left border-b pb-3 mb-3">
+            <DialogTitle className="text-base font-bold text-foreground truncate" title={visualizarDoc?.nome}>
+              {visualizarDoc?.nome}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+              Visualização de documento comprobatório anexado pelo paciente.
+            </DialogDescription>
+          </DialogHeader>
+ 
+          <div className="flex items-center justify-center p-2 bg-muted/20 border rounded-xl overflow-hidden min-h-[300px]">
+            {visualizarDoc?.tipo === "PDF" ? (
+              <div className="text-center space-y-4 p-8">
+                <FileText className="h-16 w-16 text-red-500 mx-auto" />
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">Documento PDF anexado</h4>
+                  <p className="text-xs text-muted-foreground max-w-xs mt-1">
+                    Como este é um ambiente local simulado, você pode baixar o arquivo original ou abri-lo localmente.
+                  </p>
+                </div>
+                <a
+                  href={visualizarDoc.url}
+                  download={visualizarDoc.nome}
+                  className="inline-flex items-center gap-2 h-10 px-5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/95 transition-all shadow-md shadow-primary/10 cursor-pointer"
+                >
+                  <Eye className="h-4 w-4" />
+                  Download / Abrir PDF
+                </a>
+              </div>
+            ) : (
+              <img
+                src={visualizarDoc?.url}
+                alt={visualizarDoc?.nome}
+                className="max-h-[60vh] max-w-full rounded-lg object-contain shadow-xs"
+              />
+            )}
+          </div>
+ 
+          <div className="flex justify-end mt-4">
+            <Button
+              onClick={() => setVisualizarDoc(null)}
+              className="text-xs h-10 rounded-xl cursor-pointer"
+            >
+              Fechar Visualização
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

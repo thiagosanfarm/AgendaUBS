@@ -1,4 +1,4 @@
-import { Agendamento, TipoAgendamento } from "../domain/entities/Agendamento";
+import { Agendamento, TipoAgendamento, DocumentoAgendamento } from "../domain/entities/Agendamento";
 import { IAgendamentoRepository } from "../domain/repositories/IAgendamentoRepository";
 import { verificarHorarioNoPassado } from "@/utils/date-helpers";
 
@@ -15,6 +15,7 @@ export interface CriarAgendamentoInput {
   observacoes?: string;
   reguladorId?: string;
   reguladorNome?: string;
+  documentos?: DocumentoAgendamento[];
 }
 
 export class CriarAgendamento {
@@ -65,6 +66,7 @@ export class CriarAgendamento {
       tipo: input.tipo,
       especialidade: input.especialidade,
       observacoes: input.observacoes,
+      documentos: input.documentos,
       ...((input.reguladorId) ? {
         reguladorId: input.reguladorId,
         reguladorNome: input.reguladorNome,
