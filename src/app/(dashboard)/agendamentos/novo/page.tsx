@@ -9,7 +9,7 @@ import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/Loca
 import { CriarAgendamento } from "@/core/use-cases/CriarAgendamento";
 import { UBS } from "@/core/domain/entities/UBS";
 import { Profissional } from "@/core/domain/entities/Profissional";
-import { TipoAgendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
+import { TipoAgendamento, DocumentoAgendamento, PrioridadeAgendamento } from "@/core/domain/entities/Agendamento";
 import { formatarDataBr, formatarCEP, formatarTelefone } from "@/utils/formatters";
 import { toast } from "sonner";
 import { 
@@ -75,6 +75,7 @@ export default function NovoAgendamentoPage() {
   const [erroHorarios, setErroHorarios] = useState(false);
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [prioridadeSel, setPrioridadeSel] = useState<PrioridadeAgendamento>('normal');
 
   // Estados e Handlers do Upload de Arquivos R018
   const [anexos, setAnexos] = useState<DocumentoAgendamento[]>([]);
@@ -242,7 +243,8 @@ export default function NovoAgendamentoPage() {
         tipo: "consulta" as const,
         especialidade,
         observacoes: "",
-        documentos: anexos
+        documentos: anexos,
+        prioridade: prioridadeSel
       });
 
       toast.success("Agendamento realizado com sucesso!");
@@ -470,6 +472,45 @@ export default function NovoAgendamentoPage() {
           )}
         </div>
 
+        {/* Classificação de Prioridade R019 */}
+        <div className="space-y-2.5">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Classificação de Prioridade</span>
+          
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: 'normal', label: 'Normal (Eletiva)', desc: 'Consulta de rotina', color: 'border-slate-200 dark:border-slate-800' },
+              { id: 'preferencial', label: 'Preferencial', desc: 'Idosos, gestantes, PCD', color: 'border-amber-200 dark:border-amber-900 text-amber-600' },
+              { id: 'urgente', label: 'Urgência', desc: 'Exige comprovante', color: 'border-red-200 dark:border-red-950 text-red-600' }
+            ].map((p) => {
+              const isSelected = prioridadeSel === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setPrioridadeSel(p.id as any);
+                    if (p.id === 'urgente') {
+                      toast.info("Atenção: Para agendamentos de Urgência, é obrigatório anexar comprovantes abaixo.");
+                    }
+                  }}
+                  className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                    isSelected
+                      ? p.id === 'urgente'
+                        ? 'border-red-500 bg-red-500/5 ring-1 ring-red-500'
+                        : p.id === 'preferencial'
+                          ? 'border-amber-500 bg-amber-500/5 ring-1 ring-amber-500'
+                          : 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border bg-white dark:bg-slate-900 hover:bg-muted/30'
+                  }`}
+                >
+                  <span className="text-xs font-bold block">{p.label}</span>
+                  <span className="text-[9px] text-muted-foreground block leading-tight">{p.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Upload de Documentos R018 */}
         <div className="space-y-2.5">
           <div className="flex justify-between items-center">
@@ -561,6 +602,11 @@ export default function NovoAgendamentoPage() {
               toast.error("Por favor, selecione data e horário.");
               return;
             }
+            // Validação de Documento Obrigatório para Urgência (Critério de Aceitação)
+            if (prioridadeSel === 'urgente' && anexos.length === 0) {
+              toast.error("Para solicitações de Urgência, é obrigatório o envio do encaminhamento técnico ou justificativa médica.");
+              return;
+            }
             setConfirmacaoAberta(true);
           }}
           disabled={!dataSel || !horarioSel || !profissional}
@@ -597,6 +643,18 @@ export default function NovoAgendamentoPage() {
               <span className="block text-foreground font-semibold">{ubs?.nome}</span>
               <span className="block text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 {ubs?.endereco.logradouro}, {ubs?.endereco.numero} - {ubs?.endereco.bairro}
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              <span className="block text-[10px] uppercase font-bold text-muted-foreground">Prioridade do Atendimento</span>
+              <span className={`block font-bold capitalize ${
+                prioridadeSel === 'urgente'
+                  ? 'text-red-600'
+                  : prioridadeSel === 'preferencial'
+                    ? 'text-amber-500'
+                    : 'text-foreground'
+              }`}>
+                {prioridadeSel === 'normal' ? 'Eletiva (Normal)' : prioridadeSel}
               </span>
             </div>
             <div className="space-y-0.5">

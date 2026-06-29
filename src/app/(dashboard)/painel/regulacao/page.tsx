@@ -8,7 +8,7 @@ import { LocalStoragePacienteRepository } from "@/infra/api/repositories/LocalSt
 import { LocalStorageSolicitacaoRemanejamentoRepository } from "@/infra/api/repositories/LocalStorageSolicitacaoRemanejamentoRepository";
 import { MockProfissionalRepository } from "@/infra/api/repositories/MockProfissionalRepository";
 import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
-import { formatarDataBr, formatarCPF, formatarTelefone, formatarCNS } from "@/utils/formatters";
+import { formatarDataBr, formatarCPF, formatarTelefone, formatarCNS, formatarCEP } from "@/utils/formatters";
 import { Agendamento } from "@/core/domain/entities/Agendamento";
 import { Paciente } from "@/core/domain/entities/Paciente";
 import { SolicitacaoRemanejamento } from "@/core/domain/entities/SolicitacaoRemanejamento";
@@ -68,6 +68,20 @@ export default function RegulacaoVagasPage() {
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Estados de Filtro e Ordenação R019
+  const [filtroUbs, setFiltroUbs] = useState<string>("todas");
+  const [filtroEspecialidade, setFiltroEspecialidade] = useState<string>("todas");
+  const [filtroPrioridade, setFiltroPrioridade] = useState<string>("todas");
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>("");
+  const [filtroDataFim, setFiltroDataFim] = useState<string>("");
+  const [ordenacao, setOrdenacao] = useState<"dataAsc" | "dataDesc" | "prioridade" | "especialidade">("prioridade");
+
+  // Estado de Ficha Detalhada R019
+  const [solicitacaoDetalhada, setSolicitacaoDetalhada] = useState<Agendamento | null>(null);
+
+  // Tratamento de Erros R019
+  const [erroCarregamento, setErroCarregamento] = useState(false);
+
   // Estados das Abas R017
   const [abaAtiva, setAbaAtiva] = useState<'aprovações' | 'remanejamentos' | 'simulador'>('aprovações');
 
@@ -81,6 +95,8 @@ export default function RegulacaoVagasPage() {
   const [isSimulando, setIsSimulando] = useState(false);
 
   const carregarDados = async () => {
+    setLoading(true);
+    setErroCarregamento(false);
     try {
       const listAgendamentos = await agendamentoRepository.listarTodos();
       setAgendamentos(listAgendamentos);
@@ -96,6 +112,7 @@ export default function RegulacaoVagasPage() {
       }
     } catch (err) {
       console.error("Erro ao carregar dados de regulação:", err);
+      setErroCarregamento(true);
     } finally {
       setLoading(false);
     }
@@ -180,6 +197,61 @@ export default function RegulacaoVagasPage() {
 
   const obterPacienteDoAgendamento = (pacienteId: string) => {
     return pacientes.find(p => p.id === pacienteId);
+  };
+
+  const obterHistoricoPaciente = (pacienteId: string) => {
+    return agendamentos.filter(a => a.pacienteId === pacienteId && a.id !== solicitacaoDetalhada?.id);
+  };
+
+  const obterSolicitacoesFiltradasEOrdenadas = () => {
+    let result = [...pendentes];
+
+    // Filtro por UBS
+    if (filtroUbs !== "todas") {
+      result = result.filter((a) => a.ubsId === filtroUbs);
+    }
+    // Filtro por Especialidade
+    if (filtroEspecialidade !== "todas") {
+      result = result.filter((a) => a.especialidade === filtroEspecialidade);
+    }
+    // Filtro por Prioridade
+    if (filtroPrioridade !== "todas") {
+      result = result.filter((a) => a.prioridade === filtroPrioridade);
+    }
+    // Filtro por Período
+    if (filtroDataInicio) {
+      result = result.filter((a) => a.data >= filtroDataInicio);
+    }
+    if (filtroDataFim) {
+      result = result.filter((a) => a.data <= filtroDataFim);
+    }
+
+    // Ordenações
+    result.sort((a, b) => {
+      if (ordenacao === "dataAsc") {
+        return new Date(`${a.data}T${a.horario}`).getTime() - new Date(`${b.data}T${b.horario}`).getTime();
+      }
+      if (ordenacao === "dataDesc") {
+        return new Date(`${b.data}T${b.horario}`).getTime() - new Date(`${a.data}T${a.horario}`).getTime();
+      }
+      if (ordenacao === "especialidade") {
+        return a.especialidade.localeCompare(b.especialidade);
+      }
+      if (ordenacao === "prioridade") {
+        const peso = { urgente: 3, preferencial: 2, normal: 1 };
+        const pesoA = peso[a.prioridade || "normal"] || 1;
+        const pesoB = peso[b.prioridade || "normal"] || 1;
+        
+        if (pesoB !== pesoA) {
+          return pesoB - pesoA;
+        }
+        // Desempate por data de criação mais antiga (FIFO)
+        return new Date(a.dataCriacao).getTime() - new Date(b.dataCriacao).getTime();
+      }
+      return 0;
+    });
+
+    return result;
   };
 
   if (!usuarioLogadoPaciente && !usuarioLogadoProfissional) {
@@ -267,154 +339,334 @@ export default function RegulacaoVagasPage() {
             </button>
           );
         })}
-      </div>
-
-      {/* ABA 1: APROVAÇÕES GERAIS */}
-      {abaAtiva === "aprovações" && (
+      </div>      {abaAtiva === "aprovações" && (
         <div className="space-y-6">
-          {/* Solicitações Pendentes */}
-          <section className="space-y-3.5">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="h-4.5 w-4.5 text-primary" />
-              Solicitações Aguardando Homologação ({pendentes.length})
-            </h3>
+          
+          {erroCarregamento ? (
+            <Card className="border-destructive/30 bg-destructive/5 text-center p-8 space-y-4">
+              <AlertCircle className="h-10 w-10 text-destructive mx-auto animate-bounce" />
+              <div className="space-y-1">
+                <h4 className="font-bold text-destructive">Erro de Conexão</h4>
+                <p className="text-xs text-muted-foreground">Não foi possível carregar as solicitações pendentes da UBS central.</p>
+              </div>
+              <Button
+                onClick={() => carregarDados()}
+                className="font-bold text-xs h-9 px-4 rounded-xl cursor-pointer"
+              >
+                Tentar Novamente
+              </Button>
+            </Card>
+          ) : (
+            <>
+              {/* Barra de Filtros e Ordenação R019 */}
+              <Card className="border-border shadow-xs bg-card">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Info className="h-4.5 w-4.5 text-primary" />
+                      Painel de Filtros e Triagem de Solicitações
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFiltroUbs("todas");
+                        setFiltroEspecialidade("todas");
+                        setFiltroPrioridade("todas");
+                        setFiltroDataInicio("");
+                        setFiltroDataFim("");
+                        setOrdenacao("prioridade");
+                      }}
+                      className="h-7 px-2 text-[10px] font-bold text-primary cursor-pointer hover:bg-primary/5 rounded-lg"
+                    >
+                      Limpar Filtros
+                    </Button>
+                  </div>
 
-            {loading ? (
-              <div className="text-center py-12 text-sm text-muted-foreground animate-pulse">Carregando solicitações...</div>
-            ) : pendentes.length > 0 ? (
-              <div className="space-y-4">
-                {pendentes.map((item) => {
-                  const pac = obterPacienteDoAgendamento(item.pacienteId);
-                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                    {/* Unidade Básica */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Unidade (UBS)</label>
+                      <select
+                        value={filtroUbs}
+                        onChange={(e) => setFiltroUbs(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-medium text-foreground cursor-pointer"
+                      >
+                        <option value="todas">Todas as UBSs</option>
+                        {todasUbs.map(u => (
+                          <option key={u.id} value={u.id}>{u.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Especialidade */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Especialidade</label>
+                      <select
+                        value={filtroEspecialidade}
+                        onChange={(e) => setFiltroEspecialidade(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-medium text-foreground cursor-pointer"
+                      >
+                        <option value="todas">Todas as especialidades</option>
+                        <option value="Cardiologia">Cardiologia</option>
+                        <option value="Clínico Geral">Clínico Geral</option>
+                        <option value="Pediatria">Pediatria</option>
+                        <option value="Ginecologia e Obstetrícia">Ginecologia e Obstetrícia</option>
+                        <option value="Odontologia Geral">Odontologia Geral</option>
+                      </select>
+                    </div>
+
+                    {/* Prioridade */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Prioridade</label>
+                      <select
+                        value={filtroPrioridade}
+                        onChange={(e) => setFiltroPrioridade(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-medium text-foreground cursor-pointer"
+                      >
+                        <option value="todas">Todas as prioridades</option>
+                        <option value="normal">Normal (Eletiva)</option>
+                        <option value="preferencial">Preferencial</option>
+                        <option value="urgente">Urgência</option>
+                      </select>
+                    </div>
+
+                    {/* Data Início */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Data Inicial</label>
+                      <input
+                        type="date"
+                        value={filtroDataInicio}
+                        onChange={(e) => setFiltroDataInicio(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-medium text-foreground cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Data Fim */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Data Final</label>
+                      <input
+                        type="date"
+                        value={filtroDataFim}
+                        onChange={(e) => setFiltroDataFim(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-medium text-foreground cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Ordenação */}
+                    <div className="space-y-1">
+                      <label className="font-bold text-muted-foreground uppercase text-[10px]">Ordenar por</label>
+                      <select
+                        value={ordenacao}
+                        onChange={(e) => setOrdenacao(e.target.value as any)}
+                        className="w-full h-9 rounded-lg border border-border bg-background px-2.5 outline-none font-bold text-primary cursor-pointer"
+                      >
+                        <option value="prioridade">Gravidade: Urgentes Primeiro</option>
+                        <option value="dataAsc">Data: Mais antigos (FIFO)</option>
+                        <option value="dataDesc">Data: Mais recentes</option>
+                        <option value="especialidade">Especialidade (A-Z)</option>
+                      </select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Solicitações Pendentes Triadas */}
+              <section className="space-y-3.5">
+                {(() => {
+                  const filtrados = obterSolicitacoesFiltradasEOrdenadas();
                   return (
-                    <Card key={item.id} className="border-border shadow-xs overflow-hidden">
-                      <CardHeader className="bg-muted/15 border-b p-4 flex flex-row items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs">
-                          <User className="h-4.5 w-4.5 text-primary" />
-                          <span className="font-bold text-foreground">{pac?.nomeCompleto || "Paciente SUS"}</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          Solicitado em: {formatarDataBr(item.dataCriacao.split("T")[0])}
+                    <>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <AlertCircle className="h-4.5 w-4.5 text-primary" />
+                          Filtrados / Aguardando Triagem ({filtrados.length})
                         </span>
-                      </CardHeader>
-                      
-                      <CardContent className="p-4 space-y-3 text-xs">
-                        {/* Dados Básicos Paciente */}
-                        {pac && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2.5 border-b border-dashed">
-                            <div>CPF: <span className="font-semibold text-foreground">{formatarCPF(pac.cpf)}</span></div>
-                            <div>CNS: <span className="font-semibold text-foreground">{formatarCNS(pac.cns)}</span></div>
-                          </div>
-                        )}
-
-                        {/* Dados Atendimento */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          <div className="space-y-1.5">
-                            <span className="block text-[10px] uppercase font-bold text-muted-foreground">Especialidade / Serviço:</span>
-                            <span className="block text-foreground font-semibold text-sm capitalize">{item.tipo} de {item.especialidade}</span>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="block text-[10px] uppercase font-bold text-muted-foreground">Profissional de Saúde:</span>
-                            <span className="block text-foreground font-semibold">{item.profissionalNome}</span>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="block text-[10px] uppercase font-bold text-muted-foreground">Unidade Básica (UBS):</span>
-                            <span className="block text-foreground font-semibold">{item.ubsNome}</span>
-                          </div>
-                          <div className="space-y-1.5">
-                            <span className="block text-[10px] uppercase font-bold text-muted-foreground">Data e Horário Solicitado:</span>
-                            <span className="block text-primary font-bold">{formatarDataBr(item.data)} às {item.horario}</span>
-                          </div>
-                        </div>
-                        {/* Documentação de Encaminhamento Anexada (R018) */}
-                        <div className="pt-3 border-t border-dashed space-y-2">
-                          <span className="block text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
-                            <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
-                            Documentação Comprobatória Anexada
+                        {filtrados.length !== pendentes.length && (
+                          <span className="text-[10px] text-muted-foreground lowercase">
+                            (filtrado de {pendentes.length} no total)
                           </span>
- 
-                          {item.documentos && item.documentos.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {item.documentos.map((doc) => {
-                                const isPdf = doc.tipo === "PDF";
-                                return (
-                                  <div
-                                    key={doc.id}
-                                    className="p-2 border rounded-xl flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      {isPdf ? (
-                                        <div className="h-9 w-9 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
-                                          <FileText className="h-4.5 w-4.5" />
-                                        </div>
-                                      ) : (
-                                        <img
-                                          src={doc.url}
-                                          alt={doc.nome}
-                                          className="h-9 w-9 rounded-lg object-cover border shrink-0 bg-muted"
-                                        />
-                                      )}
-                                      <div className="min-w-0 leading-tight">
-                                        <span className="block font-bold text-foreground truncate max-w-[120px]" title={doc.nome}>
-                                          {doc.nome}
-                                        </span>
-                                        <span className="block text-[9px] text-muted-foreground uppercase">
-                                          {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
-                                        </span>
-                                      </div>
+                        )}
+                      </h3>
+
+                      {loading ? (
+                        <div className="text-center py-12 text-sm text-muted-foreground animate-pulse">Carregando solicitações...</div>
+                      ) : filtrados.length > 0 ? (
+                        <div className="space-y-4">
+                          {filtrados.map((item) => {
+                            const pac = obterPacienteDoAgendamento(item.pacienteId);
+                            const isUrgente = item.prioridade === "urgente";
+                            const isPreferencial = item.prioridade === "preferencial";
+                            
+                            return (
+                              <Card
+                                key={item.id}
+                                className={`shadow-xs overflow-hidden border-l-4 transition-all ${
+                                  isUrgente
+                                    ? "border-l-red-500 bg-red-500/[0.01] border-red-500/20"
+                                    : isPreferencial
+                                      ? "border-l-amber-500 bg-amber-500/[0.01] border-amber-500/20"
+                                      : "border-l-slate-400 border-border"
+                                }`}
+                              >
+                                <CardHeader className="bg-muted/15 border-b p-4 flex flex-row items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <User className="h-4.5 w-4.5 text-primary" />
+                                    <span className="font-bold text-foreground">{pac?.nomeCompleto || "Paciente SUS"}</span>
+                                    
+                                    {/* Badge da prioridade R019 */}
+                                    <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                      isUrgente
+                                        ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                                        : isPreferencial
+                                          ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                          : "bg-slate-500/10 text-slate-600 border border-slate-500/20"
+                                    }`}>
+                                      {isUrgente && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />}
+                                      {item.prioridade || "normal"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    Solicitado em: {formatarDataBr(item.dataCriacao.split("T")[0])}
+                                  </span>
+                                </CardHeader>
+                                
+                                <CardContent className="p-4 space-y-3 text-xs">
+                                  {/* Dados Básicos Paciente */}
+                                  {pac && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2.5 border-b border-dashed">
+                                      <div>CPF: <span className="font-semibold text-foreground">{formatarCPF(pac.cpf)}</span></div>
+                                      <div>CNS: <span className="font-semibold text-foreground">{formatarCNS(pac.cns)}</span></div>
                                     </div>
+                                  )}
  
+                                  {/* Dados Atendimento */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    <div className="space-y-1.5">
+                                      <span className="block text-[10px] uppercase font-bold text-muted-foreground">Especialidade / Serviço:</span>
+                                      <span className="block text-foreground font-semibold text-sm capitalize">{item.tipo} de {item.especialidade}</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <span className="block text-[10px] uppercase font-bold text-muted-foreground">Profissional de Saúde:</span>
+                                      <span className="block text-foreground font-semibold">{item.profissionalNome}</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <span className="block text-[10px] uppercase font-bold text-muted-foreground">Unidade Básica (UBS):</span>
+                                      <span className="block text-foreground font-semibold">{item.ubsNome}</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <span className="block text-[10px] uppercase font-bold text-muted-foreground">Data e Horário Solicitado:</span>
+                                      <span className="block text-primary font-bold">{formatarDataBr(item.data)} às {item.horario}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Documentação de Encaminhamento Anexada (R018) */}
+                                  <div className="pt-3 border-t border-dashed space-y-2">
+                                    <span className="block text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
+                                      <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
+                                      Documentação Comprobatória Anexada
+                                    </span>
+           
+                                    {item.documentos && item.documentos.length > 0 ? (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {item.documentos.map((doc) => {
+                                          const isPdf = doc.tipo === "PDF";
+                                          return (
+                                            <div
+                                              key={doc.id}
+                                              className="p-2 border rounded-xl flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
+                                            >
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                {isPdf ? (
+                                                  <div className="h-9 w-9 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
+                                                    <FileText className="h-4.5 w-4.5" />
+                                                  </div>
+                                                ) : (
+                                                  <img
+                                                    src={doc.url}
+                                                    alt={doc.nome}
+                                                    className="h-9 w-9 rounded-lg object-cover border shrink-0 bg-muted"
+                                                  />
+                                                )}
+                                                <div className="min-w-0 leading-tight">
+                                                  <span className="block font-bold text-foreground truncate max-w-[120px]" title={doc.nome}>
+                                                    {doc.nome}
+                                                  </span>
+                                                  <span className="block text-[9px] text-muted-foreground uppercase">
+                                                    {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
+                                                  </span>
+                                                </div>
+                                              </div>
+           
+                                              <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
+                                                className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
+                                                title="Visualizar documento"
+                                              >
+                                                <Eye className="h-4.5 w-4.5" />
+                                              </Button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div className="p-3 bg-amber-500/5 text-amber-700 dark:text-amber-400 border border-amber-500/10 rounded-xl text-[11px] font-medium flex items-center gap-2">
+                                        ⚠️ Nenhum documento foi anexado a esta solicitação.
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+ 
+                                <CardFooter className="p-4 border-t justify-between gap-2 bg-muted/5 flex-wrap">
+                                  {/* Botão de Análise R019 */}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setSolicitacaoDetalhada(item)}
+                                    className="h-8 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 cursor-pointer gap-1.5"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Análise Completa / Ficha
+                                  </Button>
+
+                                  <div className="flex gap-2">
                                     <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
-                                      className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
-                                      title="Visualizar documento"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleRejeitar(item.id)}
+                                      className="h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10 cursor-pointer gap-1"
                                     >
-                                      <Eye className="h-4.5 w-4.5" />
+                                      <X className="h-3.5 w-3.5" />
+                                      Recusar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleAprovar(item.id)}
+                                      className="h-8 text-xs font-semibold cursor-pointer gap-1"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      Aprovar Vaga
                                     </Button>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="p-3 bg-amber-500/5 text-amber-700 dark:text-amber-400 border border-amber-500/10 rounded-xl text-[11px] font-medium flex items-center gap-2">
-                              ⚠️ Nenhum documento foi anexado a esta solicitação.
-                            </div>
-                          )}
+                                </CardFooter>
+                              </Card>
+                            );
+                          })}
                         </div>
-                      </CardContent>
-
-                      <CardFooter className="p-4 border-t justify-end gap-2 bg-muted/5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRejeitar(item.id)}
-                          className="h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10 cursor-pointer gap-1"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                          Recusar Vaga
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAprovar(item.id)}
-                          className="h-8 text-xs font-semibold cursor-pointer gap-1"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                          Homologar / Aprovar
-                        </Button>
-                      </CardFooter>
-                    </Card>
+                      ) : (
+                        <div className="text-center py-8 text-xs text-muted-foreground border-2 border-dashed rounded-lg bg-card/50">
+                          Nenhuma solicitação atende aos critérios dos filtros aplicados.
+                        </div>
+                      )}
+                    </>
                   );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-xs text-muted-foreground border-2 border-dashed rounded-lg bg-card/50">
-                Nenhuma solicitação de agendamento pendente de aprovação pela regulação.
-              </div>
-            )}
-          </section>
+                })()}
+              </section>
+            </>
+          )}
 
           {/* Histórico das Validações Concluídas */}
           <section className="space-y-3">
@@ -669,6 +921,254 @@ export default function RegulacaoVagasPage() {
           </Card>
         </section>
       )}
+
+
+      {/* Ficha de Análise Detalhada da Solicitação R019 */}
+      <Dialog open={!!solicitacaoDetalhada} onOpenChange={() => setSolicitacaoDetalhada(null)}>
+        <DialogContent className="max-w-3xl rounded-2xl p-6 border bg-card scrollbar-thin overflow-y-auto max-h-[90vh]">
+          {(() => {
+            if (!solicitacaoDetalhada) return null;
+            const pac = obterPacienteDoAgendamento(solicitacaoDetalhada.pacienteId);
+            const isUrgente = solicitacaoDetalhada.prioridade === "urgente";
+            const isPreferencial = solicitacaoDetalhada.prioridade === "preferencial";
+            const historico = obterHistoricoPaciente(solicitacaoDetalhada.pacienteId);
+            
+            return (
+              <>
+                <DialogHeader className="text-left border-b pb-4 mb-4">
+                  <div className="flex items-center gap-2 flex-wrap justify-between">
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      Ficha Médica de Triagem & Regulação
+                    </DialogTitle>
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      isUrgente
+                        ? "bg-red-500/10 text-red-600 border border-red-500/20"
+                        : isPreferencial
+                          ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                          : "bg-slate-500/10 text-slate-600 border border-slate-500/20"
+                    }`}>
+                      {isUrgente && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />}
+                      Prioridade: {solicitacaoDetalhada.prioridade || "normal"}
+                    </span>
+                  </div>
+                  <DialogDescription className="text-xs text-muted-foreground mt-1">
+                    Analise os dados cadastrais, histórico e documentos anexados antes de aprovar.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-5 text-xs">
+                  {/* Ficha Cadastral do Paciente */}
+                  <div className="space-y-2">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                      1. Informações Pessoais do Paciente
+                    </span>
+                    <div className="p-3 bg-muted/30 border rounded-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 leading-relaxed">
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Nome Completo</span>
+                        <span className="font-bold text-foreground">{pac?.nomeCompleto || "Não informado"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">CPF</span>
+                        <span className="font-bold text-foreground">{pac ? formatarCPF(pac.cpf) : "Não informado"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">CNS (Cartão SUS)</span>
+                        <span className="font-bold text-foreground">{pac ? formatarCNS(pac.cns) : "Não informado"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Contato / Telefone</span>
+                        <span className="font-semibold text-foreground">{pac ? formatarTelefone(pac.telefone) : "Não informado"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">E-mail</span>
+                        <span className="font-semibold text-foreground">{pac?.email || "Não informado"}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">UBS de Vínculo</span>
+                        <span className="font-semibold text-foreground">{solicitacaoDetalhada.ubsNome}</span>
+                      </div>
+                      {pac?.endereco && (
+                        <div className="col-span-1 sm:col-span-2 md:col-span-3">
+                          <span className="block text-[9px] text-muted-foreground uppercase">Endereço Residencial</span>
+                          <span className="font-medium text-foreground">
+                            {pac.endereco.logradouro}, {pac.endereco.numero} - {pac.endereco.bairro} ({formatarCEP(pac.endereco.cep)})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dados da Consulta Solicitada */}
+                  <div className="space-y-2">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                      2. Detalhes da Solicitação Atual
+                    </span>
+                    <div className="p-3 bg-muted/30 border rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-3 leading-relaxed">
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Tipo e Especialidade</span>
+                        <span className="font-bold text-foreground capitalize">{solicitacaoDetalhada.tipo} de {solicitacaoDetalhada.especialidade}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Profissional Solicitado</span>
+                        <span className="font-bold text-foreground">{solicitacaoDetalhada.profissionalNome}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Data e Horário</span>
+                        <span className="font-bold text-primary">{formatarDataBr(solicitacaoDetalhada.data)} às {solicitacaoDetalhada.horario}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-muted-foreground uppercase">Data de Entrada na Fila</span>
+                        <span className="font-semibold text-foreground">{formatarDataBr(solicitacaoDetalhada.dataCriacao.split("T")[0])} às {solicitacaoDetalhada.dataCriacao.split("T")[1]?.slice(0, 5)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentos Anexados */}
+                  <div className="space-y-2">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                      3. Documentos e Comprovantes de Triagem ({solicitacaoDetalhada.documentos?.length || 0})
+                    </span>
+                    {solicitacaoDetalhada.documentos && solicitacaoDetalhada.documentos.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {solicitacaoDetalhada.documentos.map((doc) => {
+                          const isPdf = doc.tipo === "PDF";
+                          return (
+                            <div
+                              key={doc.id}
+                              className="p-2.5 border rounded-xl flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isPdf ? (
+                                  <div className="h-9 w-9 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
+                                    <FileText className="h-4.5 w-4.5" />
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={doc.url}
+                                    alt={doc.nome}
+                                    className="h-9 w-9 rounded-lg object-cover border shrink-0 bg-muted"
+                                  />
+                                )}
+                                <div className="min-w-0 leading-tight">
+                                  <span className="block font-bold text-foreground truncate max-w-[150px]" title={doc.nome}>
+                                    {doc.nome}
+                                  </span>
+                                  <span className="block text-[9px] text-muted-foreground uppercase">
+                                    {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
+                                  </span>
+                                </div>
+                              </div>
+
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
+                                className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
+                                title="Visualizar documento"
+                              >
+                                <Eye className="h-4.5 w-4.5" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-500/5 text-amber-700 dark:text-amber-400 border border-amber-500/10 rounded-xl text-[11px] font-medium flex items-center gap-2">
+                        ⚠️ Atenção: Paciente não anexou nenhum documento comprobatório.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Histórico do Paciente na Rede */}
+                  <div className="space-y-2">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                      4. Histórico Clínico de Agendamentos / Solicitações
+                    </span>
+                    <div className="border rounded-xl bg-card overflow-hidden max-h-48 overflow-y-auto">
+                      {historico.length > 0 ? (
+                        <div className="divide-y divide-border">
+                          {historico.map((hDoc) => {
+                            const statusTraduzido = {
+                              solicitado: "Aguardando Regulação",
+                              agendado: "Agendado",
+                              cancelado: "Cancelado",
+                              realizado: "Atendido",
+                              ausente: "Falta/Ausente"
+                            }[hDoc.status] || hDoc.status;
+
+                            return (
+                              <div key={hDoc.id} className="p-2.5 flex items-center justify-between text-[11px] gap-2 hover:bg-muted/10 transition-colors">
+                                <div className="leading-tight">
+                                  <span className="font-bold text-foreground capitalize block">{hDoc.tipo} de {hDoc.especialidade}</span>
+                                  <span className="text-[9px] text-muted-foreground block mt-0.5">
+                                    Profissional: {hDoc.profissionalNome} • Unidade: {hDoc.ubsNome}
+                                  </span>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="font-semibold text-foreground block">{formatarDataBr(hDoc.data)} às {hDoc.horario}</span>
+                                  <span className={`inline-block text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase mt-1 ${
+                                    hDoc.status === "realizado"
+                                      ? "bg-emerald-500/10 text-emerald-600"
+                                      : hDoc.status === "agendado"
+                                        ? "bg-sky-500/10 text-sky-600"
+                                        : hDoc.status === "cancelado"
+                                          ? "bg-red-500/10 text-red-600"
+                                          : "bg-slate-500/10 text-slate-600"
+                                  }`}>
+                                    {statusTraduzido}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-center text-muted-foreground text-[11px]">
+                          Este paciente não possui outras solicitações no histórico.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center border-t pt-4 mt-6 gap-3 flex-wrap">
+                  <Button
+                    onClick={() => setSolicitacaoDetalhada(null)}
+                    variant="ghost"
+                    className="text-xs h-10 rounded-xl cursor-pointer"
+                  >
+                    Fechar Ficha
+                  </Button>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        handleRejeitar(solicitacaoDetalhada.id);
+                        setSolicitacaoDetalhada(null);
+                      }}
+                      className="text-xs h-10 rounded-xl text-destructive hover:bg-destructive/10 border-destructive/20 cursor-pointer gap-1"
+                    >
+                      <X className="h-4 w-4" />
+                      Recusar Solicitação
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        handleAprovar(solicitacaoDetalhada.id);
+                        setSolicitacaoDetalhada(null);
+                      }}
+                      className="text-xs h-10 rounded-xl cursor-pointer gap-1"
+                    >
+                      <Check className="h-4 w-4" />
+                      Homologar & Confirmar
+                    </Button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Lightbox de Visualização de Documentos R018 */}
       <Dialog open={!!visualizarDoc} onOpenChange={() => setVisualizarDoc(null)}>

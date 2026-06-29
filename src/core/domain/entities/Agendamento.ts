@@ -1,5 +1,6 @@
 export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente';
 export type TipoAgendamento = 'consulta' | 'exame';
+export type PrioridadeAgendamento = 'normal' | 'preferencial' | 'urgente';
 
 export interface DocumentoAgendamento {
   id: string;
@@ -25,6 +26,7 @@ export interface Agendamento {
   tipo: TipoAgendamento;
   especialidade: string; // Ex: "Clínico Geral", "Odontologia", "Hemograma"
   status: StatusAgendamento;
+  prioridade?: PrioridadeAgendamento;
   motivoCancelamento?: string;
   observacoes?: string;
   dataCriacao: string; // ISO 8601
