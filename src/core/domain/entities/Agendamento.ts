@@ -31,4 +31,10 @@ export interface Agendamento {
   observacoes?: string;
   dataCriacao: string; // ISO 8601
   documentos?: DocumentoAgendamento[];
+  // Campos de Auditoria de Regulação R020
+  reguladorNome?: string;
+  dataRegulacao?: string;
+  horarioRegulacao?: string;
+  decisaoRegulacao?: 'aprovado' | 'rejeitado';
+  observacaoRegulacao?: string;
 }

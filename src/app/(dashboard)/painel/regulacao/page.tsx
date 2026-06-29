@@ -76,8 +76,10 @@ export default function RegulacaoVagasPage() {
   const [filtroDataFim, setFiltroDataFim] = useState<string>("");
   const [ordenacao, setOrdenacao] = useState<"dataAsc" | "dataDesc" | "prioridade" | "especialidade">("prioridade");
 
-  // Estado de Ficha Detalhada R019
+  // Estado de Ficha Detalhada R019 e Parecer Técnico R020
   const [solicitacaoDetalhada, setSolicitacaoDetalhada] = useState<Agendamento | null>(null);
+  const [decisaoSel, setDecisaoSel] = useState<'aprovar' | 'rejeitar' | null>(null);
+  const [observacoesAnalise, setObservacoesAnalise] = useState<string>("");
 
   // Tratamento de Erros R019
   const [erroCarregamento, setErroCarregamento] = useState(false);
@@ -140,11 +142,11 @@ export default function RegulacaoVagasPage() {
   }, [simUbs, simEspecialidade]);
 
   const pendentes = agendamentos.filter((a) => a.status === "solicitado");
-  const concluidos = agendamentos.filter((a) => a.status === "agendado" || (a.status === "cancelado" && a.observacoes?.includes("Rejeitado pela regulação")));
+  const concluidos = agendamentos.filter((a) => a.decisaoRegulacao !== undefined);
 
-  const handleAprovar = async (id: string) => {
+  const handleAprovar = async (id: string, obs: string = "") => {
     try {
-      await agendamentoRepository.atualizarStatus(id, "agendado");
+      await agendamentoRepository.atualizarStatus(id, "agendado", undefined, reguladorNome, obs);
       toast.success("Solicitação de agendamento homologada e confirmada!");
       carregarDados();
     } catch (err) {
@@ -152,9 +154,9 @@ export default function RegulacaoVagasPage() {
     }
   };
 
-  const handleRejeitar = async (id: string) => {
+  const handleRejeitar = async (id: string, obs: string = "Rejeitado pela regulação central da UBS.") => {
     try {
-      await agendamentoRepository.atualizarStatus(id, "cancelado", "Rejeitado pela regulação central da UBS.");
+      await agendamentoRepository.atualizarStatus(id, "cancelado", obs, reguladorNome, obs);
       toast.warning("Solicitação de agendamento recusada.");
       carregarDados();
     } catch (err) {
@@ -619,24 +621,31 @@ export default function RegulacaoVagasPage() {
                                     )}
                                   </div>
                                 </CardContent>
- 
                                 <CardFooter className="p-4 border-t justify-between gap-2 bg-muted/5 flex-wrap">
                                   {/* Botão de Análise R019 */}
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => setSolicitacaoDetalhada(item)}
+                                    onClick={() => {
+                                      setSolicitacaoDetalhada(item);
+                                      setDecisaoSel(null);
+                                      setObservacoesAnalise("");
+                                    }}
                                     className="h-8 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 cursor-pointer gap-1.5"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                     Análise Completa / Ficha
                                   </Button>
-
+ 
                                   <div className="flex gap-2">
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => handleRejeitar(item.id)}
+                                      onClick={() => {
+                                        setSolicitacaoDetalhada(item);
+                                        setDecisaoSel('rejeitar');
+                                        setObservacoesAnalise("");
+                                      }}
                                       className="h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10 cursor-pointer gap-1"
                                     >
                                       <X className="h-3.5 w-3.5" />
@@ -644,7 +653,11 @@ export default function RegulacaoVagasPage() {
                                     </Button>
                                     <Button
                                       size="sm"
-                                      onClick={() => handleAprovar(item.id)}
+                                      onClick={() => {
+                                        setSolicitacaoDetalhada(item);
+                                        setDecisaoSel('aprovar');
+                                        setObservacoesAnalise("");
+                                      }}
                                       className="h-8 text-xs font-semibold cursor-pointer gap-1"
                                     >
                                       <Check className="h-3.5 w-3.5" />
@@ -701,6 +714,14 @@ export default function RegulacaoVagasPage() {
                             <p className="text-[9px] text-muted-foreground font-semibold">
                               Consulta: {formatarDataBr(item.data)} às {item.horario}
                             </p>
+                            <p className="text-[9px] text-muted-foreground mt-1">
+                              Regulado por: <span className="font-bold text-foreground">{item.reguladorNome || "Regulador"}</span> em {item.dataRegulacao ? formatarDataBr(item.dataRegulacao) : ""} às {item.horarioRegulacao || ""}
+                            </p>
+                            {item.observacaoRegulacao && (
+                              <p className="text-[10px] p-2 bg-muted/40 border rounded-lg text-foreground italic mt-1.5 leading-relaxed max-w-xl">
+                                Parecer: "{item.observacaoRegulacao}"
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
@@ -1131,38 +1152,101 @@ export default function RegulacaoVagasPage() {
                   </div>
                 </div>
 
+                {/* Form de Parecer R020 */}
+                <div className="space-y-3.5 pt-4 border-t border-dashed">
+                  <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                    5. Parecer Técnico & Decisão da Regulação
+                  </span>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDecisaoSel('aprovar')}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                        decisaoSel === 'aprovar'
+                          ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500 text-emerald-600'
+                          : 'border-border bg-card hover:bg-muted/10 text-foreground'
+                      }`}
+                    >
+                      <Check className="h-4.5 w-4.5" />
+                      <span className="text-xs font-bold">Homologar / Aprovar Vaga</span>
+                      <span className="text-[9px] text-muted-foreground leading-tight">Documentação em conformidade</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDecisaoSel('rejeitar')}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                        decisaoSel === 'rejeitar'
+                          ? 'border-destructive bg-destructive/5 ring-1 ring-destructive text-destructive'
+                          : 'border-border bg-card hover:bg-muted/10 text-foreground'
+                      }`}
+                    >
+                      <X className="h-4.5 w-4.5" />
+                      <span className="text-xs font-bold">Recusar / Rejeitar Solicitação</span>
+                      <span className="text-[9px] text-muted-foreground leading-tight">Documento inválido ou ausente</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      Justificativa Parecer Técnico {decisaoSel === 'rejeitar' && <span className="text-red-500">*</span>}
+                    </label>
+                    <textarea
+                      value={observacoesAnalise}
+                      onChange={(e) => setObservacoesAnalise(e.target.value)}
+                      placeholder={
+                        decisaoSel === 'rejeitar'
+                          ? "Descreva detalhadamente o motivo da inconsistência ou falta de encaminhamento (obrigatório)..."
+                          : "Observações adicionais do parecer de homologação (opcional)..."
+                      }
+                      className="w-full min-h-[75px] max-h-[120px] rounded-xl border border-border bg-background p-3 outline-none text-xs text-foreground resize-none leading-relaxed"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center border-t pt-4 mt-6 gap-3 flex-wrap">
                   <Button
-                    onClick={() => setSolicitacaoDetalhada(null)}
+                    onClick={() => {
+                      setSolicitacaoDetalhada(null);
+                      setDecisaoSel(null);
+                      setObservacoesAnalise("");
+                    }}
                     variant="ghost"
                     className="text-xs h-10 rounded-xl cursor-pointer"
                   >
-                    Fechar Ficha
+                    Cancelar
                   </Button>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        handleRejeitar(solicitacaoDetalhada.id);
+                  <Button
+                    onClick={async () => {
+                      if (!decisaoSel) {
+                        toast.error("Por favor, selecione uma decisão (Aprovar ou Recusar) para concluir a análise.");
+                        return;
+                      }
+                      if (decisaoSel === 'rejeitar' && !observacoesAnalise.trim()) {
+                        toast.error("Para recusar a solicitação, é obrigatório registrar a justificativa.");
+                        return;
+                      }
+
+                      try {
+                        if (decisaoSel === 'aprovar') {
+                          await handleAprovar(solicitacaoDetalhada.id, observacoesAnalise);
+                        } else {
+                          await handleRejeitar(solicitacaoDetalhada.id, observacoesAnalise);
+                        }
                         setSolicitacaoDetalhada(null);
-                      }}
-                      className="text-xs h-10 rounded-xl text-destructive hover:bg-destructive/10 border-destructive/20 cursor-pointer gap-1"
-                    >
-                      <X className="h-4 w-4" />
-                      Recusar Solicitação
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleAprovar(solicitacaoDetalhada.id);
-                        setSolicitacaoDetalhada(null);
-                      }}
-                      className="text-xs h-10 rounded-xl cursor-pointer gap-1"
-                    >
-                      <Check className="h-4 w-4" />
-                      Homologar & Confirmar
-                    </Button>
-                  </div>
+                        setDecisaoSel(null);
+                        setObservacoesAnalise("");
+                      } catch (e) {
+                        toast.error("Erro ao salvar o parecer técnico.");
+                      }
+                    }}
+                    className="text-xs h-10 rounded-xl cursor-pointer gap-1.5 font-bold px-6"
+                  >
+                    <Check className="h-4 w-4" />
+                    Registrar Parecer & Concluir
+                  </Button>
                 </div>
               </>
             );

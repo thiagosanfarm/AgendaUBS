@@ -6,6 +6,64 @@ const LOCAL_STORAGE_KEY = "agendaubs_pacientes";
 export class LocalStoragePacienteRepository implements IPacienteRepository {
   private obterTodos(): Paciente[] {
     if (typeof window === "undefined") return [];
+    
+    const resetKey = "agendaubs_pacientes_reset_v3";
+    const hasReset = localStorage.getItem(resetKey);
+    
+    const pacientesSeed: Paciente[] = [
+      {
+        id: "paciente-maria-teste",
+        nomeCompleto: "Maria Teste",
+        cpf: "123.456.789-09",
+        cns: "200000000000003",
+        dataNascimento: "1990-05-15",
+        email: "paciente@agendaubs.local",
+        telefone: "(11) 99999-9999",
+        genero: "feminino",
+        endereco: {
+          cep: "01001-000",
+          logradouro: "Praça da Sé",
+          numero: "100",
+          complemento: "",
+          bairro: "Sé",
+          cidade: "São Paulo",
+          uf: "SP"
+        },
+        senha: "Teste@123",
+        dataCriacao: new Date().toISOString(),
+        papel: "paciente"
+      },
+      {
+        id: "gestor-ubs-teste",
+        nomeCompleto: "Gestor UBS Teste",
+        cpf: "987.654.321-26",
+        cns: "100000000000007",
+        dataNascimento: "1980-10-20",
+        email: "gestor@agendaubs.local",
+        telefone: "(11) 98888-8888",
+        genero: "masculino",
+        endereco: {
+          cep: "01001-000",
+          logradouro: "Praça da Sé",
+          numero: "100",
+          complemento: "",
+          bairro: "Sé",
+          cidade: "São Paulo",
+          uf: "SP"
+        },
+        senha: "Teste@123",
+        dataCriacao: new Date().toISOString(),
+        papel: "administrador",
+        ubsId: "ubs-centro"
+      }
+    ];
+
+    if (!hasReset) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pacientesSeed));
+      localStorage.setItem(resetKey, "true");
+      return pacientesSeed;
+    }
+
     const dados = localStorage.getItem(LOCAL_STORAGE_KEY);
     return dados ? JSON.parse(dados) : [];
   }

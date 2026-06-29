@@ -230,7 +230,7 @@ export default function ValidarEnderecosPage() {
   const handleSimularACS = () => {
     if (paciente) {
       try {
-        toast.info("Logue na aba 'Profissional' com o identificador '789101' e senha '123456' para simular a agente comunitária Aline.");
+        toast.info("Logue na aba 'Profissional' com o e-mail 'acs@agendaubs.local' e senha 'Teste@123' para simular a agente comunitária Ana ACS.");
         router.push("/login");
       } catch (err) {
         toast.error("Falha ao direcionar para a simulação.");

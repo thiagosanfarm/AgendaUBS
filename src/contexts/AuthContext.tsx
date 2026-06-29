@@ -45,6 +45,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restaura a sessão do usuário do localStorage ao iniciar
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const resetAuthKey = "agendaubs_auth_session_reset_v3";
+      if (!localStorage.getItem(resetAuthKey)) {
+        localStorage.removeItem("agendaubs_sessao_usuario_id");
+        localStorage.removeItem("agendaubs_sessao_tipo");
+        localStorage.removeItem("agendaubs_sessao_expiracao");
+        localStorage.removeItem("agendaubs_sessao_lembrar");
+        localStorage.removeItem("agendaubs_lembrar_usuario");
+        localStorage.setItem(resetAuthKey, "true");
+      }
+
       const idSalvo = localStorage.getItem("agendaubs_sessao_usuario_id");
       const tipoSalvo = localStorage.getItem("agendaubs_sessao_tipo") as any;
       const expiracaoSalva = localStorage.getItem("agendaubs_sessao_expiracao");

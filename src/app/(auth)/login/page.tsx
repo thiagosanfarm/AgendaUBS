@@ -256,9 +256,21 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {tipoUsuarioForm === "profissional" && (
-            <div className="p-3 bg-muted/40 rounded-lg border text-[11px] text-muted-foreground leading-normal">
-              💡 **Dica de Teste (Profissional):** Para logar com um profissional do banco simulado (ex: Dr. Carlos Silva - Clínico Geral), use o identificador **`123456`** e a senha **`123456`**.
+          {tipoUsuarioForm === "profissional" ? (
+            <div className="p-3 bg-muted/40 rounded-lg border text-[11px] text-muted-foreground leading-normal space-y-1">
+              <span className="block font-bold">💡 Contas de Teste disponíveis:</span>
+              <div>• <strong>Profissional:</strong> <code>profissional@agendaubs.local</code> / <code>Teste@123</code></div>
+              <div>• <strong>ACS:</strong> <code>acs@agendaubs.local</code> / <code>Teste@123</code></div>
+            </div>
+          ) : tipoUsuarioForm === "administrador" ? (
+            <div className="p-3 bg-muted/40 rounded-lg border text-[11px] text-muted-foreground leading-normal space-y-1">
+              <span className="block font-bold">💡 Contas de Teste disponíveis:</span>
+              <div>• <strong>Gestor/Admin:</strong> <code>gestor@agendaubs.local</code> / <code>Teste@123</code></div>
+            </div>
+          ) : (
+            <div className="p-3 bg-muted/40 rounded-lg border text-[11px] text-muted-foreground leading-normal space-y-1">
+              <span className="block font-bold">💡 Contas de Teste disponíveis:</span>
+              <div>• <strong>Paciente:</strong> <code>paciente@agendaubs.local</code> / <code>Teste@123</code></div>
             </div>
           )}
 

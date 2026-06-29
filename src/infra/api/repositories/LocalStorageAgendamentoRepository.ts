@@ -75,7 +75,9 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
   async atualizarStatus(
     id: string,
     status: StatusAgendamento,
-    motivoCancelamento?: string
+    motivoCancelamento?: string,
+    reguladorNome?: string,
+    observacaoRegulacao?: string
   ): Promise<Agendamento> {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const agendamentos = this.obterTodos();
@@ -85,10 +87,21 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
       throw new Error("Agendamento não encontrado.");
     }
 
+    const agora = new Date();
+    const dataRegulacao = agora.toISOString().split("T")[0];
+    const horarioRegulacao = agora.toTimeString().split(" ")[0].slice(0, 5);
+
     const agendamentoAtualizado = {
       ...agendamentos[index],
       status,
-      motivoCancelamento: motivoCancelamento || agendamentos[index].motivoCancelamento
+      motivoCancelamento: motivoCancelamento || agendamentos[index].motivoCancelamento,
+      ...(reguladorNome ? {
+        reguladorNome,
+        dataRegulacao,
+        horarioRegulacao,
+        decisaoRegulacao: status === "agendado" ? ("aprovado" as const) : ("rejeitado" as const),
+        observacaoRegulacao: observacaoRegulacao || ""
+      } : {})
     };
 
     agendamentos[index] = agendamentoAtualizado;
