@@ -24,7 +24,8 @@ import {
   Check,
   AlertTriangle,
   Info,
-  CalendarDays
+  CalendarDays,
+  Sparkles
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -393,6 +394,15 @@ export default function NovoAgendamentoPage() {
               Sem vagas disponíveis para este profissional na data selecionada.
             </div>
           )}
+        </div>
+
+        {/* Dica de Remanejamento R017 */}
+        <div className="p-3 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-2.5 text-[11px] text-muted-foreground leading-relaxed mt-4">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5 animate-pulse" />
+          <div>
+            <span className="font-bold text-foreground block">Precisa de um horário mais próximo?</span>
+            Agende a vaga disponível mais conveniente hoje e, em seguida, solicite a entrada na <strong>Lista de Remanejamento</strong> na tela "Meus Agendamentos" para tentar antecipar seu atendimento caso surjam desistências!
+          </div>
         </div>
 
         {/* Botão de Confirmação no Rodapé */}

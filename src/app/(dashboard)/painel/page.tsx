@@ -4,8 +4,11 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/LocalStorageAgendamentoRepository";
+import { LocalStorageSolicitacaoRemanejamentoRepository } from "@/infra/api/repositories/LocalStorageSolicitacaoRemanejamentoRepository";
 import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
 import { Agendamento } from "@/core/domain/entities/Agendamento";
+import { SolicitacaoRemanejamento } from "@/core/domain/entities/SolicitacaoRemanejamento";
+import { aceitarVagaRemanejamento, recusarVagaRemanejamento, verificarELiberarVaga } from "@/utils/remanejamento-helper";
 import { UBS } from "@/core/domain/entities/UBS";
 import { obterNomeDiaSemana, obterDataPorExtenso } from "@/utils/date-helpers";
 import { formatarDataBr } from "@/utils/formatters";
@@ -25,13 +28,16 @@ import {
   Activity,
   Users,
   AlertCircle,
-  FileCheck
+  FileCheck,
+  Sparkles,
+  Timer
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 const agendamentoRepository = new LocalStorageAgendamentoRepository();
+const remanejamentoRepository = new LocalStorageSolicitacaoRemanejamentoRepository();
 const ubsRepository = new MockUbsRepository();
 
 export default function PainelPage() {
@@ -48,6 +54,11 @@ export default function PainelPage() {
   const [todosAgendamentosUbs, setTodosAgendamentosUbs] = useState<Agendamento[]>([]);
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
 
+  // Estados para Remanejamento R017
+  const [remanejamentoPendente, setRemanejamentoPendente] = useState<SolicitacaoRemanejamento | null>(null);
+  const [tempoRestante, setTempoRestante] = useState<string>("");
+  const [isProcessandoVaga, setIsProcessandoVaga] = useState(false);
+
   const [loading, setLoading] = useState(true);
 
   const hojeIso = new Date().toISOString().split("T")[0];
@@ -57,6 +68,30 @@ export default function PainelPage() {
   useEffect(() => {
     ubsRepository.listarTodas().then(setTodasUbs);
   }, []);
+
+  const carregarDadosRemanejamento = () => {
+    if (paciente && tipoUsuario === "paciente") {
+      remanejamentoRepository.listarPorPaciente(paciente.id).then((lista) => {
+        // Encontra se há alguma solicitação com status 'disponibilizado'
+        const disp = lista.find(s => s.status === 'disponibilizado');
+        if (disp) {
+          // Verifica se o prazo já expirou
+          const agora = new Date();
+          const limite = new Date(disp.vagaDisponibilizada?.prazoRespostaLimite || "");
+          if (limite < agora) {
+            // Se expirou, marca de volta para pendente automaticamente
+            remanejamentoRepository.atualizarStatus(disp.id, "pendente").then(() => {
+              setRemanejamentoPendente(null);
+            });
+          } else {
+            setRemanejamentoPendente(disp);
+          }
+        } else {
+          setRemanejamentoPendente(null);
+        }
+      });
+    }
+  };
 
   useEffect(() => {
     if (!tipoUsuario) return;
@@ -79,6 +114,9 @@ export default function PainelPage() {
 
           setProximoAgendamento(ativos.length > 0 ? ativos[0] : null);
           setAgendamentosRecentes(lista.slice(0, 3));
+          
+          // Carrega remanejamento
+          carregarDadosRemanejamento();
         })
         .catch((err) => console.error("Erro ao carregar dados do paciente:", err))
         .finally(() => setLoading(false));
@@ -107,11 +145,97 @@ export default function PainelPage() {
     }
   }, [paciente, profissional, tipoUsuario]);
 
+  // Hook para contador regressivo R017
+  useEffect(() => {
+    if (!remanejamentoPendente || !remanejamentoPendente.vagaDisponibilizada) return;
+
+    const interval = setInterval(() => {
+      const agora = new Date().getTime();
+      const limite = new Date(remanejamentoPendente.vagaDisponibilizada!.prazoRespostaLimite).getTime();
+      const diferenca = limite - agora;
+
+      if (diferenca <= 0) {
+        clearInterval(interval);
+        setTempoRestante("Expirado");
+        
+        // Expira automaticamente voltando para a fila
+        remanejamentoRepository.atualizarStatus(remanejamentoPendente.id, "pendente").then(() => {
+          setRemanejamentoPendente(null);
+          toast.warning("O prazo de resposta da vaga de remanejamento expirou.");
+          if (paciente) {
+            agendamentoRepository.listarPorPaciente(paciente.id).then((lista) => {
+              const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado");
+              setProximoAgendamento(ativos.length > 0 ? ativos[0] : null);
+              setAgendamentosRecentes(lista.slice(0, 3));
+            });
+          }
+        });
+      } else {
+        const minutos = Math.floor((diferenca % (1000 * 60 * 60)) / (1000 * 60));
+        const segundos = Math.floor((diferenca % (1000 * 60)) / 1000);
+        setTempoRestante(`${String(minutos).padStart(2, "0")}m ${String(segundos).padStart(2, "0")}s`);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [remanejamentoPendente]);
+
+  const handleAceitarVaga = async () => {
+    if (!remanejamentoPendente) return;
+    setIsProcessandoVaga(true);
+    try {
+      await aceitarVagaRemanejamento(remanejamentoPendente.id);
+      toast.success("Vaga de remanejamento aceita com sucesso!");
+      setRemanejamentoPendente(null);
+      // Recarrega todos os dados
+      if (paciente) {
+        const lista = await agendamentoRepository.listarPorPaciente(paciente.id);
+        const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado");
+        setProximoAgendamento(ativos.length > 0 ? ativos[0] : null);
+        setAgendamentosRecentes(lista.slice(0, 3));
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao aceitar vaga.");
+    } finally {
+      setIsProcessandoVaga(false);
+    }
+  };
+
+  const handleRecusarVaga = async () => {
+    if (!remanejamentoPendente) return;
+    setIsProcessandoVaga(true);
+    try {
+      await recusarVagaRemanejamento(remanejamentoPendente.id);
+      toast.warning("Vaga de remanejamento recusada. Você continua na fila de espera.");
+      setRemanejamentoPendente(null);
+      carregarDadosRemanejamento();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao recusar vaga.");
+    } finally {
+      setIsProcessandoVaga(false);
+    }
+  };
+
   const handleAtualizarStatusAgendamento = async (id: string, status: "realizado" | "cancelado") => {
     try {
+      const agendamento = await agendamentoRepository.obterPorId(id);
       await agendamentoRepository.atualizarStatus(id, status);
       toast.success(`Agendamento atualizado para ${status}!`);
       
+      if (status === "cancelado" && agendamento) {
+        // Dispara o matching de remanejamento para a vaga que acabou de liberar!
+        await verificarELiberarVaga({
+          ubsId: agendamento.ubsId,
+          ubsNome: agendamento.ubsNome,
+          profissionalId: agendamento.profissionalId,
+          profissionalNome: agendamento.profissionalNome,
+          especialidade: agendamento.especialidade,
+          tipo: agendamento.tipo,
+          data: agendamento.data,
+          horario: agendamento.horario
+        });
+      }
+
       // Recarrega a agenda
       if (profissional) {
         const lista = await agendamentoRepository.listarPorProfissional(profissional.id);
@@ -514,6 +638,57 @@ export default function PainelPage() {
           <span className="block text-sm font-bold">{dataExtenso}</span>
         </div>
       </div>
+
+      {/* Banner de Vaga de Remanejamento Disponibilizada (R017) */}
+      {remanejamentoPendente && remanejamentoPendente.vagaDisponibilizada && (
+        <Card className="border-2 border-primary bg-primary/5 shadow-md overflow-hidden animate-in zoom-in duration-300">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary text-primary-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Oportunidade de Remanejamento
+                  </span>
+                  <span className="text-[10px] font-bold text-destructive flex items-center gap-1 bg-destructive/10 px-2 py-0.5 rounded-full animate-pulse">
+                    <Timer className="h-3.5 w-3.5" />
+                    Expira em: {tempoRestante}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-foreground leading-snug">
+                    Temos uma vaga antecipada para sua consulta/exame de <strong className="text-primary font-black capitalize">{remanejamentoPendente.especialidade}</strong>!
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    A vaga foi disponibilizada na unidade <strong className="text-foreground">{remanejamentoPendente.vagaDisponibilizada.ubsNome}</strong> com o profissional <strong className="text-foreground">{remanejamentoPendente.vagaDisponibilizada.profissionalNome}</strong>.
+                  </p>
+                  <p className="text-xs font-bold text-primary bg-primary/10 w-fit px-2 py-0.5 rounded-md mt-1">
+                    Novo Horário: {formatarDataBr(remanejamentoPendente.vagaDisponibilizada.data)} às {remanejamentoPendente.vagaDisponibilizada.horario}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
+                <Button
+                  variant="outline"
+                  onClick={handleRecusarVaga}
+                  disabled={isProcessandoVaga}
+                  className="h-10 text-xs font-bold border-destructive/20 hover:bg-destructive/10 text-destructive cursor-pointer rounded-xl"
+                >
+                  Recusar Vaga
+                </Button>
+                <Button
+                  onClick={handleAceitarVaga}
+                  disabled={isProcessandoVaga}
+                  className="h-10 text-xs font-extrabold bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-md rounded-xl"
+                >
+                  {isProcessandoVaga ? "Processando..." : "Aceitar Nova Vaga"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grid Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
