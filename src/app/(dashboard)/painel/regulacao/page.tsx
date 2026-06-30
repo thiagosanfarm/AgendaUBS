@@ -78,8 +78,10 @@ export default function RegulacaoVagasPage() {
 
   // Estado de Ficha Detalhada R019 e Parecer Técnico R020
   const [solicitacaoDetalhada, setSolicitacaoDetalhada] = useState<Agendamento | null>(null);
-  const [decisaoSel, setDecisaoSel] = useState<'aprovar' | 'rejeitar' | null>(null);
+  const [decisaoSel, setDecisaoSel] = useState<'aprovar' | 'rejeitar' | 'solicitar_doc' | null>(null);
   const [observacoesAnalise, setObservacoesAnalise] = useState<string>("");
+  const [docSolicitadoDesc, setDocSolicitadoDesc] = useState<string>("");
+  const [prazoLimiteDoc, setPrazoLimiteDoc] = useState<string>("");
 
   // Estado temporário para documentos em triagem
   const [documentosEditados, setDocumentosEditados] = useState<DocumentoAgendamento[]>([]);
@@ -89,10 +91,12 @@ export default function RegulacaoVagasPage() {
   const [isDocLoading, setIsDocLoading] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
-  // Sincroniza documentosEditados com os documentos da solicitacao selecionada
+  // Sincroniza documentosEditados com os documentos da solicitacao selecionada e reseta campos de parecer
   useEffect(() => {
     if (solicitacaoDetalhada) {
       setDocumentosEditados(solicitacaoDetalhada.documentos || []);
+      setDocSolicitadoDesc("");
+      setPrazoLimiteDoc("");
     } else {
       setDocumentosEditados([]);
     }
@@ -188,6 +192,7 @@ export default function RegulacaoVagasPage() {
 
   const pendentes = agendamentos.filter((a) => a.status === "solicitado");
   const concluidos = agendamentos.filter((a) => a.decisaoRegulacao !== undefined);
+  const aguardandoDocumentacao = agendamentos.filter((a) => a.status === "aguardando_documentacao");
 
   const handleAprovar = async (id: string, obs: string = "") => {
     try {
@@ -729,6 +734,54 @@ export default function RegulacaoVagasPage() {
             </>
           )}
 
+          {/* Solicitações Aguardando Documentação Complementar R021 */}
+          {aguardandoDocumentacao.length > 0 && (
+            <section className="space-y-3 pt-4 border-t border-dashed">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4.5 w-4.5 text-amber-500" />
+                Aguardando Documentação Complementar ({aguardandoDocumentacao.length})
+              </h3>
+              <div className="grid grid-cols-1 gap-3">
+                {aguardandoDocumentacao.map(item => {
+                  const pac = obterPacienteDoAgendamento(item.pacienteId);
+                  const hoje = new Date().toISOString().split("T")[0];
+                  const atrasado = item.prazoEnvioDocumentacao && item.prazoEnvioDocumentacao < hoje;
+
+                  return (
+                    <Card key={item.id} className="border-l-4 border-l-amber-500 bg-amber-500/[0.01]">
+                      <CardContent className="p-4 space-y-2.5 text-xs">
+                        <div className="flex justify-between items-center flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-amber-600" />
+                            <span className="font-bold text-foreground">{pac?.nomeCompleto || "Paciente SUS"}</span>
+                          </div>
+                          {item.prazoEnvioDocumentacao && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              atrasado ? "bg-red-500/10 text-red-600 border border-red-500/20" : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                            }`}>
+                              {atrasado ? "Prazo Expirado" : `Prazo: ${formatarDataBr(item.prazoEnvioDocumentacao)}`}
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-2.5 bg-muted/40 border border-dashed rounded-lg space-y-1">
+                          <span className="block text-[9px] uppercase font-bold text-muted-foreground">Documentação Solicitada:</span>
+                          <span className="block text-foreground italic font-semibold">"{item.motivoSolicitacaoComplementar}"</span>
+                          <span className="block text-[9px] text-muted-foreground mt-1">
+                            Solicitado por: <strong>{item.reguladorResponsavelComplementar}</strong> em {item.dataSolicitacaoComplementar ? formatarDataBr(item.dataSolicitacaoComplementar) : ""}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground flex justify-between items-center flex-wrap gap-2">
+                          <span>Consulta de {item.especialidade} ({item.ubsNome})</span>
+                          <span>Agendado originalmente para: {formatarDataBr(item.data)} às {item.horario}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Histórico das Validações Concluídas */}
           <section className="space-y-3">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -1228,7 +1281,8 @@ export default function RegulacaoVagasPage() {
                               agendado: "Agendado",
                               cancelado: "Cancelado",
                               realizado: "Atendido",
-                              ausente: "Falta/Ausente"
+                              ausente: "Falta/Ausente",
+                              aguardando_documentacao: "Aguardando Documentação"
                             }[hDoc.status] || hDoc.status;
 
                             return (
@@ -1266,57 +1320,101 @@ export default function RegulacaoVagasPage() {
                   </div>
                 </div>
 
-                {/* Form de Parecer R020 */}
+                {/* Form de Parecer R020 e R021 */}
                 <div className="space-y-3.5 pt-4 border-t border-dashed">
                   <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
                     5. Parecer Técnico & Decisão da Regulação
                   </span>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setDecisaoSel('aprovar')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
                         decisaoSel === 'aprovar'
                           ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500 text-emerald-600'
                           : 'border-border bg-card hover:bg-muted/10 text-foreground'
                       }`}
                     >
                       <Check className="h-4.5 w-4.5" />
-                      <span className="text-xs font-bold">Homologar / Aprovar Vaga</span>
-                      <span className="text-[9px] text-muted-foreground leading-tight">Documentação em conformidade</span>
+                      <span className="text-xs font-bold text-center">Homologar / Aprovar Vaga</span>
+                      <span className="text-[9px] text-muted-foreground text-center leading-tight">Documentação conforme</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setDecisaoSel('rejeitar')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
                         decisaoSel === 'rejeitar'
                           ? 'border-destructive bg-destructive/5 ring-1 ring-destructive text-destructive'
                           : 'border-border bg-card hover:bg-muted/10 text-foreground'
                       }`}
                     >
                       <X className="h-4.5 w-4.5" />
-                      <span className="text-xs font-bold">Recusar / Rejeitar Solicitação</span>
-                      <span className="text-[9px] text-muted-foreground leading-tight">Documento inválido ou ausente</span>
+                      <span className="text-xs font-bold text-center">Recusar / Rejeitar</span>
+                      <span className="text-[9px] text-muted-foreground text-center leading-tight">Documento inválido/ausente</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDecisaoSel('solicitar_doc')}
+                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                        decisaoSel === 'solicitar_doc'
+                          ? 'border-amber-500 bg-amber-500/5 ring-1 ring-amber-500 text-amber-600'
+                          : 'border-border bg-card hover:bg-muted/10 text-foreground'
+                      }`}
+                    >
+                      <AlertCircle className="h-4.5 w-4.5" />
+                      <span className="text-xs font-bold text-center">Solicitar Documentos</span>
+                      <span className="text-[9px] text-muted-foreground text-center leading-tight">Apontar pendências</span>
                     </button>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase font-bold text-muted-foreground block">
-                      Justificativa Parecer Técnico {decisaoSel === 'rejeitar' && <span className="text-red-500">*</span>}
-                    </label>
-                    <textarea
-                      value={observacoesAnalise}
-                      onChange={(e) => setObservacoesAnalise(e.target.value)}
-                      placeholder={
-                        decisaoSel === 'rejeitar'
-                          ? "Descreva detalhadamente o motivo da inconsistência ou falta de encaminhamento (obrigatório)..."
-                          : "Observações adicionais do parecer de homologação (opcional)..."
-                      }
-                      className="w-full min-h-[75px] max-h-[120px] rounded-xl border border-border bg-background p-3 outline-none text-xs text-foreground resize-none leading-relaxed"
-                    />
-                  </div>
+                  {decisaoSel && (
+                    decisaoSel === 'solicitar_doc' ? (
+                      <div className="space-y-3.5 animate-in fade-in duration-200">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground block">
+                            Documentos Requeridos <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            value={docSolicitadoDesc}
+                            onChange={(e) => setDocSolicitadoDesc(e.target.value)}
+                            placeholder="Especifique de forma detalhada o que o paciente precisa enviar (ex: Laudo com CID, Receituário atualizado assinado)..."
+                            className="w-full min-h-[75px] max-h-[120px] rounded-xl border border-border bg-background p-3 outline-none text-xs text-foreground resize-none leading-relaxed"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground block">
+                            Prazo Limite para Envio (Opcional)
+                          </label>
+                          <input
+                            type="date"
+                            value={prazoLimiteDoc}
+                            onChange={(e) => setPrazoLimiteDoc(e.target.value)}
+                            min={new Date().toISOString().split("T")[0]}
+                            className="w-full h-10 rounded-lg border border-border bg-background px-3 outline-none font-medium text-foreground cursor-pointer text-xs"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 animate-in fade-in duration-200">
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Justificativa Parecer Técnico {decisaoSel === 'rejeitar' && <span className="text-red-500">*</span>}
+                        </label>
+                        <textarea
+                          value={observacoesAnalise}
+                          onChange={(e) => setObservacoesAnalise(e.target.value)}
+                          placeholder={
+                            decisaoSel === 'rejeitar'
+                              ? "Descreva detalhadamente o motivo da inconsistência ou falta de encaminhamento (obrigatório)..."
+                              : "Observações adicionais do parecer de homologação (opcional)..."
+                          }
+                          className="w-full min-h-[75px] max-h-[120px] rounded-xl border border-border bg-background p-3 outline-none text-xs text-foreground resize-none leading-relaxed"
+                        />
+                      </div>
+                    )
+                  )}
                 </div>
 
                 <div className="flex justify-between items-center border-t pt-4 mt-6 gap-3 flex-wrap">
@@ -1325,6 +1423,8 @@ export default function RegulacaoVagasPage() {
                       setSolicitacaoDetalhada(null);
                       setDecisaoSel(null);
                       setObservacoesAnalise("");
+                      setDocSolicitadoDesc("");
+                      setPrazoLimiteDoc("");
                     }}
                     variant="ghost"
                     className="text-xs h-10 rounded-xl cursor-pointer"
@@ -1335,35 +1435,59 @@ export default function RegulacaoVagasPage() {
                   <Button
                     onClick={async () => {
                       if (!decisaoSel) {
-                        toast.error("Por favor, selecione uma decisão (Aprovar ou Recusar) para concluir a análise.");
+                        toast.error("Por favor, selecione uma decisão para concluir a análise.");
                         return;
                       }
                       if (decisaoSel === 'rejeitar' && !observacoesAnalise.trim()) {
                         toast.error("Para recusar a solicitação, é obrigatório registrar a justificativa.");
                         return;
                       }
+                      if (decisaoSel === 'solicitar_doc' && !docSolicitadoDesc.trim()) {
+                        toast.error("Por favor, descreva detalhadamente quais documentos são necessários.");
+                        return;
+                      }
 
                       try {
-                        // 1. Salvar os status e permissões editados dos documentos
-                        const finalDocs = documentosEditados.map(doc => {
-                          if (decisaoSel === 'aprovar' && doc.status === 'pendente') {
-                            return { ...doc, status: 'validado' as const };
-                          }
-                          return doc;
-                        });
-                        await agendamentoRepository.atualizarDocumentos(solicitacaoDetalhada.id, finalDocs);
-
-                        // 2. Salvar parecer e concluir a regulação
-                        if (decisaoSel === 'aprovar') {
-                          await handleAprovar(solicitacaoDetalhada.id, observacoesAnalise);
+                        if (decisaoSel === 'solicitar_doc') {
+                          // Caso especial: Solicitação de documentos complementares (R021)
+                          await agendamentoRepository.atualizarStatus(
+                            solicitacaoDetalhada.id,
+                            "aguardando_documentacao",
+                            undefined,
+                            reguladorNome,
+                            undefined,
+                            undefined,
+                            docSolicitadoDesc,
+                            prazoLimiteDoc || undefined
+                          );
+                          toast.warning("Solicitação de documentação complementar registrada!");
                         } else {
-                          await handleRejeitar(solicitacaoDetalhada.id, observacoesAnalise);
+                          // Casos de homologação ou recusa (R020)
+                          // 1. Salvar os status e permissões editados dos documentos
+                          const finalDocs = documentosEditados.map(doc => {
+                            if (decisaoSel === 'aprovar' && doc.status === 'pendente') {
+                              return { ...doc, status: 'validado' as const };
+                            }
+                            return doc;
+                          });
+                          await agendamentoRepository.atualizarDocumentos(solicitacaoDetalhada.id, finalDocs);
+
+                          // 2. Salvar parecer e concluir a regulação
+                          if (decisaoSel === 'aprovar') {
+                            await handleAprovar(solicitacaoDetalhada.id, observacoesAnalise);
+                          } else {
+                            await handleRejeitar(solicitacaoDetalhada.id, observacoesAnalise);
+                          }
                         }
+                        
                         setSolicitacaoDetalhada(null);
                         setDecisaoSel(null);
                         setObservacoesAnalise("");
+                        setDocSolicitadoDesc("");
+                        setPrazoLimiteDoc("");
+                        carregarDados();
                       } catch (e) {
-                        toast.error("Erro ao salvar o parecer técnico.");
+                        toast.error("Erro ao salvar a decisão de regulação.");
                       }
                     }}
                     className="text-xs h-10 rounded-xl cursor-pointer gap-1.5 font-bold px-6"

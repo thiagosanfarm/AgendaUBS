@@ -1,4 +1,4 @@
-export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente';
+export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente' | 'aguardando_documentacao';
 export type TipoAgendamento = 'consulta' | 'exame';
 export type PrioridadeAgendamento = 'normal' | 'preferencial' | 'urgente';
 
@@ -42,4 +42,10 @@ export interface Agendamento {
   canceladoPorNome?: string;
   dataCancelamento?: string;
   horarioCancelamento?: string;
+  // Campos de Solicitação de Documentação Complementar R021
+  motivoSolicitacaoComplementar?: string;
+  prazoEnvioDocumentacao?: string;
+  dataSolicitacaoComplementar?: string;
+  horarioSolicitacaoComplementar?: string;
+  reguladorResponsavelComplementar?: string;
 }

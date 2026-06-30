@@ -78,7 +78,9 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     motivoCancelamento?: string,
     reguladorNome?: string,
     observacaoRegulacao?: string,
-    canceladoPorNome?: string
+    canceladoPorNome?: string,
+    motivoSolicitacaoComplementar?: string,
+    prazoEnvioDocumentacao?: string
   ): Promise<Agendamento> {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const agendamentos = this.obterTodos();
@@ -100,8 +102,15 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
         reguladorNome,
         dataRegulacao: dataAtual,
         horarioRegulacao: horarioAtual,
-        decisaoRegulacao: status === "agendado" ? ("aprovado" as const) : ("rejeitado" as const),
+        decisaoRegulacao: status === "agendado" ? ("aprovado" as const) : (status === "aguardando_documentacao" ? undefined : ("rejeitado" as const)),
         observacaoRegulacao: observacaoRegulacao || ""
+      } : {}),
+      ...(status === "aguardando_documentacao" ? {
+        motivoSolicitacaoComplementar,
+        prazoEnvioDocumentacao,
+        dataSolicitacaoComplementar: dataAtual,
+        horarioSolicitacaoComplementar: horarioAtual,
+        reguladorResponsavelComplementar: reguladorNome || "Regulador"
       } : {}),
       ...(status === "cancelado" ? {
         canceladoPorNome: canceladoPorNome || "Usuário",
@@ -109,6 +118,15 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
         horarioCancelamento: horarioAtual
       } : {})
     };
+
+    // Se voltar para solicitado, remove os campos temporários de solicitação complementar
+    if (status === "solicitado") {
+      delete agendamentoAtualizado.motivoSolicitacaoComplementar;
+      delete agendamentoAtualizado.prazoEnvioDocumentacao;
+      delete agendamentoAtualizado.dataSolicitacaoComplementar;
+      delete agendamentoAtualizado.horarioSolicitacaoComplementar;
+      delete agendamentoAtualizado.reguladorResponsavelComplementar;
+    }
 
     agendamentos[index] = agendamentoAtualizado;
     this.salvarTodos(agendamentos);
@@ -149,7 +167,7 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
 
     // Filtra os horários que já estão agendados (ativos) para o profissional naquele dia
     const horariosReservados = agendamentos
-      .filter(a => a.profissionalId === profissionalId && a.data === data && (a.status === "agendado" || a.status === "solicitado"))
+      .filter(a => a.profissionalId === profissionalId && a.data === data && (a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao"))
       .map(a => a.horario);
 
     // Filtra os horários padrão removendo os reservados e os que já passaram (se for hoje)

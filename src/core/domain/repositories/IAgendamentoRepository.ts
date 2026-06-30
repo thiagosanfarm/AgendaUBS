@@ -11,7 +11,9 @@ export interface IAgendamentoRepository {
     motivoCancelamento?: string,
     reguladorNome?: string,
     observacaoRegulacao?: string,
-    canceladoPorNome?: string
+    canceladoPorNome?: string,
+    motivoSolicitacaoComplementar?: string,
+    prazoEnvioDocumentacao?: string
   ): Promise<Agendamento>;
   atualizarDocumentos(id: string, documentos: DocumentoAgendamento[]): Promise<Agendamento>;
   obterHorariosDisponiveis(ubsId: string, profissionalId: string, data: string): Promise<string[]>;

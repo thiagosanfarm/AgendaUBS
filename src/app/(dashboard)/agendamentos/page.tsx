@@ -147,7 +147,17 @@ export default function AgendamentosPage() {
     setIsSavingDocumentos(true);
     try {
       await agendamentoRepository.atualizarDocumentos(agendamentoParaDocumentos.id, tempDocumentos);
-      toast.success("Documentação da solicitação atualizada com sucesso!");
+      
+      if (agendamentoParaDocumentos.status === "aguardando_documentacao") {
+        await agendamentoRepository.atualizarStatus(
+          agendamentoParaDocumentos.id,
+          "solicitado"
+        );
+        toast.success("Documentação complementar enviada! A solicitação retornou para a fila de triagem.");
+      } else {
+        toast.success("Documentação da solicitação atualizada com sucesso!");
+      }
+      
       setAgendamentoParaDocumentos(null);
       carregarAgendamentos();
     } catch (err: any) {
@@ -297,9 +307,9 @@ export default function AgendamentosPage() {
     }
   };
 
-  // Divide agendamentos em ativos (futuros/marcados/solicitados) e histórico (passados ou cancelados)
-  const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado");
-  const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado");
+  // Divide agendamentos em ativos (futuros/marcados/solicitados/pendentes de documentos) e histórico (passados ou cancelados)
+  const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao");
+  const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado" && a.status !== "aguardando_documentacao");
 
   // Cômputos auxiliares de cancelamento
   const ubsDoAgendamento = agendamentoParaCancelar 
@@ -343,10 +353,12 @@ export default function AgendamentosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {ativos.map((a) => {
               const isSolicitado = a.status === "solicitado";
+              const isAguardandoDoc = a.status === "aguardando_documentacao";
               return (
                 <Card
                   key={a.id}
                   className={`border-l-4 shadow-sm hover:shadow-md transition-shadow ${
+                    isAguardandoDoc ? "border-l-red-500 bg-red-500/[0.01]" :
                     isSolicitado ? "border-l-amber-500 bg-amber-500/[0.01]" : "border-l-blue-500"
                   }`}
                 >
@@ -357,11 +369,15 @@ export default function AgendamentosPage() {
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 uppercase shrink-0">
                             {a.tipo}
                           </span>
-                          {isSolicitado && (
+                          {isAguardandoDoc ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-red-500/10 text-red-600 border border-red-500/20 uppercase tracking-wide shrink-0 animate-pulse">
+                              Ação Necessária: Doc. Pendente
+                            </span>
+                          ) : isSolicitado ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase tracking-wide shrink-0">
                               Aguardando Regulação
                             </span>
-                          )}
+                          ) : null}
                           <span className="text-sm font-bold text-foreground capitalize truncate">
                             {a.especialidade}
                           </span>
@@ -388,8 +404,33 @@ export default function AgendamentosPage() {
                       </div>
                     </div>
  
-                    {/* Exibição dos Documentos Anexados (R018) */}
-                    {isSolicitado && (
+                     {/* Alerta de Documentação Complementar Pendente (R021) */}
+                     {isAguardandoDoc && (
+                      <div className="mt-3.5 p-3.5 rounded-xl bg-red-500/[0.03] border border-red-500/20 text-xs space-y-2.5 animate-in fade-in duration-200">
+                        <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
+                          <AlertTriangle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <span className="font-bold block">Documentação Complementar Solicitada</span>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              O regulador identificou pendências nos documentos enviados. Regularize o envio para que a triagem possa ser concluída.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-card border border-red-500/10 rounded-lg space-y-1.5">
+                          <span className="block text-[9px] uppercase font-bold text-muted-foreground">Documentos Solicitados:</span>
+                          <span className="block text-foreground italic font-semibold">"{a.motivoSolicitacaoComplementar}"</span>
+                          {a.prazoEnvioDocumentacao && (
+                            <span className="block text-[9px] text-muted-foreground mt-1 font-semibold">
+                              Prazo Limite de Envio: <strong className="text-red-600 dark:text-red-400">{formatarDataBr(a.prazoEnvioDocumentacao)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Exibição dos Documentos Anexados (R018 e R021) */}
+                    {(isSolicitado || isAguardandoDoc) && (
                       <div className="mt-3.5 p-3 rounded-xl bg-muted/30 border border-border flex items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2 min-w-0">
                           <Paperclip className="h-4 w-4 text-amber-500 shrink-0" />
@@ -464,7 +505,17 @@ export default function AgendamentosPage() {
  
                     <div className="border-t border-border mt-5 pt-4 flex justify-between items-center gap-2 flex-wrap">
                       <div>
-                        {isSolicitado ? (
+                        {isAguardandoDoc ? (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleOpenDocumentosModal(a)}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold cursor-pointer gap-1.5 text-xs rounded-xl shadow-xs animate-pulse"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            Enviar Documentos Pendentes
+                          </Button>
+                        ) : isSolicitado ? (
                           <Button
                             variant="outline"
                             size="sm"
