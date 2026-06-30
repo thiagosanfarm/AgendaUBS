@@ -66,3 +66,14 @@ export function obterProximosDias(totalDias: number, incluirDomingo = false): st
 
   return datas;
 }
+
+/**
+ * Calcula a diferença em horas decimais entre um momento no futuro (data e horário do agendamento)
+ * e o momento atual. Retorna um valor positivo se estiver no futuro e negativo se no passado.
+ */
+export function calcularDiferencaHoras(dataIso: string, horario: string): number {
+  const agora = new Date();
+  const dataAgendamento = new Date(`${dataIso}T${horario}:00`);
+  const diffMs = dataAgendamento.getTime() - agora.getTime();
+  return diffMs / (1000 * 60 * 60);
+}

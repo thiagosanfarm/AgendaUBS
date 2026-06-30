@@ -14,4 +14,5 @@ export interface UBS {
   latitude?: number;
   longitude?: number;
   horarioFuncionamento: string; // Ex: "07:00 - 17:00"
+  prazoMinimoCancelamentoHoras?: number; // Prazo mínimo em horas para cancelamento de agendamento
 }

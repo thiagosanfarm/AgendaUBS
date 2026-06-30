@@ -77,7 +77,8 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     status: StatusAgendamento,
     motivoCancelamento?: string,
     reguladorNome?: string,
-    observacaoRegulacao?: string
+    observacaoRegulacao?: string,
+    canceladoPorNome?: string
   ): Promise<Agendamento> {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const agendamentos = this.obterTodos();
@@ -88,8 +89,8 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     }
 
     const agora = new Date();
-    const dataRegulacao = agora.toISOString().split("T")[0];
-    const horarioRegulacao = agora.toTimeString().split(" ")[0].slice(0, 5);
+    const dataAtual = agora.toISOString().split("T")[0];
+    const horarioAtual = agora.toTimeString().split(" ")[0].slice(0, 5);
 
     const agendamentoAtualizado = {
       ...agendamentos[index],
@@ -97,10 +98,15 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
       motivoCancelamento: motivoCancelamento || agendamentos[index].motivoCancelamento,
       ...(reguladorNome ? {
         reguladorNome,
-        dataRegulacao,
-        horarioRegulacao,
+        dataRegulacao: dataAtual,
+        horarioRegulacao: horarioAtual,
         decisaoRegulacao: status === "agendado" ? ("aprovado" as const) : ("rejeitado" as const),
         observacaoRegulacao: observacaoRegulacao || ""
+      } : {}),
+      ...(status === "cancelado" ? {
+        canceladoPorNome: canceladoPorNome || "Usuário",
+        dataCancelamento: dataAtual,
+        horarioCancelamento: horarioAtual
       } : {})
     };
 

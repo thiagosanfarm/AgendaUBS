@@ -17,7 +17,8 @@ const MOCK_UBSS: UBS[] = [
     },
     latitude: -10.9168,
     longitude: -37.6534,
-    horarioFuncionamento: "24 Horas (Emergência)"
+    horarioFuncionamento: "24 Horas (Emergência)",
+    prazoMinimoCancelamentoHoras: 24
   },
   {
     id: "ubs-vila-nova", // ID mantido para compatibilidade
@@ -34,7 +35,8 @@ const MOCK_UBSS: UBS[] = [
     },
     latitude: -10.9201,
     longitude: -37.6612,
-    horarioFuncionamento: "07:00 - 17:00"
+    horarioFuncionamento: "07:00 - 17:00",
+    prazoMinimoCancelamentoHoras: 24
   },
   {
     id: "ubs-jardim-flores", // ID mantido para compatibilidade

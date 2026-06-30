@@ -9,7 +9,7 @@ import { LocalStorageSolicitacaoRemanejamentoRepository } from "@/infra/api/repo
 import { MockProfissionalRepository } from "@/infra/api/repositories/MockProfissionalRepository";
 import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
 import { formatarDataBr, formatarCPF, formatarTelefone, formatarCNS, formatarCEP } from "@/utils/formatters";
-import { Agendamento } from "@/core/domain/entities/Agendamento";
+import { Agendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
 import { Paciente } from "@/core/domain/entities/Paciente";
 import { SolicitacaoRemanejamento } from "@/core/domain/entities/SolicitacaoRemanejamento";
 import { UBS } from "@/core/domain/entities/UBS";
@@ -63,7 +63,7 @@ export default function RegulacaoVagasPage() {
   // Estados de dados
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [visualizarDoc, setVisualizarDoc] = useState<{ url: string; nome: string; tipo: string } | null>(null);
+  const [visualizarDoc, setVisualizarDoc] = useState<DocumentoAgendamento | null>(null);
   const [remanejamentos, setRemanejamentos] = useState<SolicitacaoRemanejamento[]>([]);
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +80,51 @@ export default function RegulacaoVagasPage() {
   const [solicitacaoDetalhada, setSolicitacaoDetalhada] = useState<Agendamento | null>(null);
   const [decisaoSel, setDecisaoSel] = useState<'aprovar' | 'rejeitar' | null>(null);
   const [observacoesAnalise, setObservacoesAnalise] = useState<string>("");
+
+  // Estado temporário para documentos em triagem
+  const [documentosEditados, setDocumentosEditados] = useState<DocumentoAgendamento[]>([]);
+  
+  // Estado para controle de erros e carregamento do visualizador de documentos
+  const [docLoadError, setDocLoadError] = useState(false);
+  const [isDocLoading, setIsDocLoading] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+
+  // Sincroniza documentosEditados com os documentos da solicitacao selecionada
+  useEffect(() => {
+    if (solicitacaoDetalhada) {
+      setDocumentosEditados(solicitacaoDetalhada.documentos || []);
+    } else {
+      setDocumentosEditados([]);
+    }
+  }, [solicitacaoDetalhada]);
+
+  // Reseta estado de carregamento/erro do lightbox ao trocar de documento ou recarregar
+  useEffect(() => {
+    if (visualizarDoc) {
+      setDocLoadError(false);
+      setIsDocLoading(true);
+    }
+  }, [visualizarDoc, retryKey]);
+
+  const alterarStatusDocumento = (docId: string, novoStatus: 'validado' | 'rejeitado') => {
+    setDocumentosEditados(prev =>
+      prev.map(doc => doc.id === docId ? { ...doc, status: novoStatus } : doc)
+    );
+    toast.success(`Documento marcado como ${novoStatus === 'validado' ? 'validado' : 'rejeitado'}.`);
+  };
+
+  const toggleAutorizacaoDownload = (docId: string) => {
+    setDocumentosEditados(prev =>
+      prev.map(doc => {
+        if (doc.id === docId) {
+          const proximaAutorizacao = !doc.autorizadoDownload;
+          toast.info(proximaAutorizacao ? "Download do arquivo autorizado!" : "Download do arquivo bloqueado.");
+          return { ...doc, autorizadoDownload: proximaAutorizacao };
+        }
+        return doc;
+      })
+    );
+  };
 
   // Tratamento de Erros R019
   const [erroCarregamento, setErroCarregamento] = useState(false);
@@ -562,14 +607,14 @@ export default function RegulacaoVagasPage() {
                                       <span className="block text-primary font-bold">{formatarDataBr(item.data)} às {item.horario}</span>
                                     </div>
                                   </div>
-
+ 
                                   {/* Documentação de Encaminhamento Anexada (R018) */}
                                   <div className="pt-3 border-t border-dashed space-y-2">
                                     <span className="block text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
                                       <Paperclip className="h-3.5 w-3.5 text-primary shrink-0" />
                                       Documentação Comprobatória Anexada
                                     </span>
-           
+            
                                     {item.documentos && item.documentos.length > 0 ? (
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {item.documentos.map((doc) => {
@@ -598,13 +643,16 @@ export default function RegulacaoVagasPage() {
                                                   <span className="block text-[9px] text-muted-foreground uppercase">
                                                     {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
                                                   </span>
+                                                  <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                                    Envio: {formatarDataBr(doc.dataEnvio)} às {doc.horarioEnvio}
+                                                  </span>
                                                 </div>
                                               </div>
-           
+            
                                               <Button
                                                 size="icon"
                                                 variant="ghost"
-                                                onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
+                                                onClick={() => setVisualizarDoc(doc)}
                                                 className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
                                                 title="Visualizar documento"
                                               >
@@ -1045,50 +1093,116 @@ export default function RegulacaoVagasPage() {
                   </div>
 
                   {/* Documentos Anexados */}
-                  <div className="space-y-2">
-                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
-                      3. Documentos e Comprovantes de Triagem ({solicitacaoDetalhada.documentos?.length || 0})
+                  <div className="space-y-3">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider flex items-center gap-1.5">
+                      <Paperclip className="h-4 w-4" />
+                      3. Documentos e Comprovantes de Triagem ({documentosEditados.length})
                     </span>
-                    {solicitacaoDetalhada.documentos && solicitacaoDetalhada.documentos.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {solicitacaoDetalhada.documentos.map((doc) => {
+                    {documentosEditados.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {documentosEditados.map((doc) => {
                           const isPdf = doc.tipo === "PDF";
                           return (
                             <div
                               key={doc.id}
-                              className="p-2.5 border rounded-xl flex items-center justify-between gap-3 bg-card hover:bg-muted/10 transition-colors"
+                              className="p-3 border rounded-xl flex flex-col gap-2.5 bg-card hover:border-primary/20 transition-all shadow-xs"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {isPdf ? (
-                                  <div className="h-9 w-9 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/10">
-                                    <FileText className="h-4.5 w-4.5" />
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {isPdf ? (
+                                    <div className="h-10 w-10 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 border border-red-500/15">
+                                      <FileText className="h-5 w-5" />
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={doc.url}
+                                      alt={doc.nome}
+                                      className="h-10 w-10 rounded-lg object-cover border shrink-0 bg-muted"
+                                    />
+                                  )}
+                                  <div className="min-w-0 leading-tight">
+                                    <span className="block font-bold text-foreground truncate max-w-[180px]" title={doc.nome}>
+                                      {doc.nome}
+                                    </span>
+                                    <span className="block text-[9px] text-muted-foreground uppercase mt-0.5 font-semibold">
+                                      {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
+                                    </span>
+                                    <span className="block text-[9px] text-muted-foreground mt-0.5 font-medium">
+                                      Envio: {formatarDataBr(doc.dataEnvio)} às {doc.horarioEnvio}
+                                    </span>
                                   </div>
-                                ) : (
-                                  <img
-                                    src={doc.url}
-                                    alt={doc.nome}
-                                    className="h-9 w-9 rounded-lg object-cover border shrink-0 bg-muted"
-                                  />
-                                )}
-                                <div className="min-w-0 leading-tight">
-                                  <span className="block font-bold text-foreground truncate max-w-[150px]" title={doc.nome}>
-                                    {doc.nome}
-                                  </span>
-                                  <span className="block text-[9px] text-muted-foreground uppercase">
-                                    {doc.tipo} • {(doc.tamanho / (1024 * 1024)).toFixed(2)} MB
-                                  </span>
                                 </div>
+
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setVisualizarDoc(doc)}
+                                  className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
+                                  title="Visualizar documento"
+                                >
+                                  <Eye className="h-4.5 w-4.5" />
+                                </Button>
                               </div>
 
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setVisualizarDoc({ url: doc.url, nome: doc.nome, tipo: doc.tipo })}
-                                className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg cursor-pointer shrink-0"
-                                title="Visualizar documento"
-                              >
-                                <Eye className="h-4.5 w-4.5" />
-                              </Button>
+                              {/* Controles de Regulação do Documento (R020) */}
+                              <div className="pt-2 border-t border-dashed flex flex-wrap items-center justify-between gap-2.5 bg-muted/30 p-2 rounded-lg text-[10px]">
+                                {/* Status Badge */}
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-muted-foreground uppercase text-[8px]">Triagem:</span>
+                                  <span className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide border ${
+                                    doc.status === 'validado' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                                    doc.status === 'rejeitado' ? 'bg-red-500/10 text-red-600 border-red-500/20' :
+                                    'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                                  }`}>
+                                    {doc.status === 'validado' ? 'Validado' : doc.status === 'rejeitado' ? 'Rejeitado' : 'Pendente'}
+                                  </span>
+                                </div>
+
+                                {/* Ações */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => alterarStatusDocumento(doc.id, 'validado')}
+                                    className={`h-6 px-2 rounded-md font-bold text-[9px] uppercase tracking-wide transition-all cursor-pointer ${
+                                      doc.status === 'validado'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'bg-background hover:bg-muted text-muted-foreground border border-border'
+                                    }`}
+                                  >
+                                    Validar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => alterarStatusDocumento(doc.id, 'rejeitado')}
+                                    className={`h-6 px-2 rounded-md font-bold text-[9px] uppercase tracking-wide transition-all cursor-pointer ${
+                                      doc.status === 'rejeitado'
+                                        ? 'bg-red-600 text-white shadow-xs'
+                                        : 'bg-background hover:bg-muted text-muted-foreground border border-border'
+                                    }`}
+                                  >
+                                    Rejeitar
+                                  </button>
+                                </div>
+
+                                {/* Switch de Download Autorizado */}
+                                <div className="flex items-center gap-1.5 border-l pl-2 border-border/80 shrink-0">
+                                  <span className="font-semibold text-muted-foreground uppercase text-[8px]">Down. Liberado:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAutorizacaoDownload(doc.id)}
+                                    className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                                      doc.autorizadoDownload ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                                    }`}
+                                    title={doc.autorizadoDownload ? "Clique para bloquear download" : "Clique para autorizar download"}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                        doc.autorizadoDownload ? 'translate-x-3' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
@@ -1230,6 +1344,16 @@ export default function RegulacaoVagasPage() {
                       }
 
                       try {
+                        // 1. Salvar os status e permissões editados dos documentos
+                        const finalDocs = documentosEditados.map(doc => {
+                          if (decisaoSel === 'aprovar' && doc.status === 'pendente') {
+                            return { ...doc, status: 'validado' as const };
+                          }
+                          return doc;
+                        });
+                        await agendamentoRepository.atualizarDocumentos(solicitacaoDetalhada.id, finalDocs);
+
+                        // 2. Salvar parecer e concluir a regulação
                         if (decisaoSel === 'aprovar') {
                           await handleAprovar(solicitacaoDetalhada.id, observacoesAnalise);
                         } else {
@@ -1265,42 +1389,114 @@ export default function RegulacaoVagasPage() {
               Visualização de documento comprobatório anexado pelo paciente.
             </DialogDescription>
           </DialogHeader>
- 
-          <div className="flex items-center justify-center p-2 bg-muted/20 border rounded-xl overflow-hidden min-h-[300px]">
-            {visualizarDoc?.tipo === "PDF" ? (
-              <div className="text-center space-y-4 p-8">
-                <FileText className="h-16 w-16 text-red-500 mx-auto" />
+  
+          <div className="flex flex-col items-center justify-center p-2 bg-muted/20 border rounded-xl overflow-hidden min-h-[350px] relative">
+            {/* Loading state spinner */}
+            {isDocLoading && !docLoadError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/80 z-10 gap-2">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary" />
+                <span className="text-xs text-muted-foreground font-medium">Carregando arquivo...</span>
+              </div>
+            )}
+
+            {docLoadError ? (
+              <div className="text-center space-y-4 p-8 bg-destructive/5 border border-destructive/10 rounded-xl max-w-md mx-auto z-10">
+                <AlertCircle className="h-12 w-12 text-destructive mx-auto animate-bounce" />
                 <div>
-                  <h4 className="font-bold text-foreground text-sm">Documento PDF anexado</h4>
-                  <p className="text-xs text-muted-foreground max-w-xs mt-1">
-                    Como este é um ambiente local simulado, você pode baixar o arquivo original ou abri-lo localmente.
+                  <h4 className="font-bold text-destructive text-sm">Erro ao Carregar Documento</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                    Não foi possível renderizar o arquivo. Ele pode estar corrompido, em formato inválido ou é incompatível para visualização direta.
                   </p>
                 </div>
-                <a
-                  href={visualizarDoc.url}
-                  download={visualizarDoc.nome}
-                  className="inline-flex items-center gap-2 h-10 px-5 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/95 transition-all shadow-md shadow-primary/10 cursor-pointer"
+                <Button
+                  onClick={() => {
+                    setDocLoadError(false);
+                    setIsDocLoading(true);
+                    setRetryKey(prev => prev + 1);
+                  }}
+                  size="sm"
+                  className="font-bold text-xs"
                 >
-                  <Eye className="h-4 w-4" />
-                  Download / Abrir PDF
-                </a>
+                  Tentar Novamente
+                </Button>
               </div>
+            ) : visualizarDoc?.tipo === "PDF" ? (
+              <iframe
+                key={retryKey}
+                src={visualizarDoc.url}
+                className="w-full h-[55vh] rounded-lg border-0 bg-white"
+                onLoad={() => setIsDocLoading(false)}
+                onError={() => {
+                  setDocLoadError(true);
+                  setIsDocLoading(false);
+                }}
+              />
             ) : (
               <img
+                key={retryKey}
                 src={visualizarDoc?.url}
                 alt={visualizarDoc?.nome}
                 className="max-h-[60vh] max-w-full rounded-lg object-contain shadow-xs"
+                onLoad={() => setIsDocLoading(false)}
+                onError={() => {
+                  setDocLoadError(true);
+                  setIsDocLoading(false);
+                }}
               />
             )}
           </div>
- 
-          <div className="flex justify-end mt-4">
-            <Button
-              onClick={() => setVisualizarDoc(null)}
-              className="text-xs h-10 rounded-xl cursor-pointer"
-            >
-              Fechar Visualização
-            </Button>
+  
+          {/* Footer com controle de download e fechamento (R020) */}
+          <div className="flex justify-between items-center mt-4 pt-3 border-t border-dashed">
+            {(() => {
+              const docEdit = documentosEditados.find(d => d.id === visualizarDoc?.id);
+              const isAutorizadoDownload = docEdit ? !!docEdit.autorizadoDownload : !!visualizarDoc?.autorizadoDownload;
+
+              return (
+                <>
+                  <div className="text-xs font-bold">
+                    {isAutorizadoDownload ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <Check className="h-4 w-4" /> Download Autorizado
+                      </span>
+                    ) : (
+                      <span className="text-red-500 flex items-center gap-1" title="O download deste documento não foi liberado pelo regulador">
+                        <X className="h-4 w-4" /> Download Bloqueado
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setVisualizarDoc(null)}
+                      variant="ghost"
+                      className="text-xs h-10 rounded-xl cursor-pointer"
+                    >
+                      Fechar
+                    </Button>
+
+                    <a
+                      href={isAutorizadoDownload ? visualizarDoc?.url : undefined}
+                      download={isAutorizadoDownload ? visualizarDoc?.nome : undefined}
+                      onClick={(e) => {
+                        if (!isAutorizadoDownload) {
+                          e.preventDefault();
+                          toast.error("Download não autorizado. Altere a permissão na ficha de regulação antes de baixar.");
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 h-10 px-4 text-xs font-bold rounded-xl transition-all shadow-xs ${
+                        isAutorizadoDownload
+                          ? "bg-primary text-white hover:bg-primary/95 cursor-pointer"
+                          : "bg-muted text-muted-foreground cursor-not-allowed opacity-55"
+                      }`}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Fazer Download
+                    </a>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

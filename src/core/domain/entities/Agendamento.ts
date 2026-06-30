@@ -12,6 +12,7 @@ export interface DocumentoAgendamento {
   dataEnvio: string; // YYYY-MM-DD
   horarioEnvio: string; // HH:MM
   usuarioEnvioNome: string;
+  autorizadoDownload?: boolean;
 }
 
 export interface Agendamento {
@@ -37,4 +38,8 @@ export interface Agendamento {
   horarioRegulacao?: string;
   decisaoRegulacao?: 'aprovado' | 'rejeitado';
   observacaoRegulacao?: string;
+  // Campos de Auditoria de Cancelamento R015
+  canceladoPorNome?: string;
+  dataCancelamento?: string;
+  horarioCancelamento?: string;
 }

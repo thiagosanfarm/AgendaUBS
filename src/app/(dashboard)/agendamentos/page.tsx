@@ -2,15 +2,18 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/LocalStorageAgendamentoRepository";
 import { LocalStorageSolicitacaoRemanejamentoRepository } from "@/infra/api/repositories/LocalStorageSolicitacaoRemanejamentoRepository";
+import { MockUbsRepository } from "@/infra/api/repositories/MockUbsRepository";
 import { CancelarAgendamento } from "@/core/use-cases/CancelarAgendamento";
 import { Agendamento, DocumentoAgendamento } from "@/core/domain/entities/Agendamento";
 import { SolicitacaoRemanejamento, PeriodoPreferencia } from "@/core/domain/entities/SolicitacaoRemanejamento";
 import { formatarDataBr } from "@/utils/formatters";
 import { toast } from "sonner";
 import { verificarELiberarVaga } from "@/utils/remanejamento-helper";
+import { calcularDiferencaHoras } from "@/utils/date-helpers";
 import { 
   Calendar, 
   MapPin, 
@@ -43,7 +46,8 @@ import {
 
 const agendamentoRepository = new LocalStorageAgendamentoRepository();
 const remanejamentoRepository = new LocalStorageSolicitacaoRemanejamentoRepository();
-const cancelarAgendamentoUseCase = new CancelarAgendamento(agendamentoRepository);
+const ubsRepository = new MockUbsRepository();
+const cancelarAgendamentoUseCase = new CancelarAgendamento(agendamentoRepository, ubsRepository);
 
 const DIAS_SEMANA_OPCOES = [
   { id: "segunda", label: "Segunda" },
@@ -56,8 +60,10 @@ const DIAS_SEMANA_OPCOES = [
 
 export default function AgendamentosPage() {
   const { paciente } = useAuth();
+  const router = useRouter();
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [solicitacoes, setSolicitacoes] = useState<SolicitacaoRemanejamento[]>([]);
+  const [todasUbs, setTodasUbs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estados para modal de cancelamento
@@ -169,6 +175,7 @@ export default function AgendamentosPage() {
 
   useEffect(() => {
     carregarAgendamentos();
+    ubsRepository.listarTodas().then(setTodasUbs).catch(err => console.error("Erro ao listar UBSs:", err));
   }, [paciente]);
 
   const handleOpenCancelModal = (agendamento: Agendamento) => {
@@ -179,18 +186,14 @@ export default function AgendamentosPage() {
   const handleConfirmCancel = async () => {
     if (!agendamentoParaCancelar) return;
 
-    if (motivoCancelamento.trim().length < 5) {
-      toast.error("O motivo do cancelamento deve ter pelo menos 5 caracteres.");
-      return;
-    }
-
     setIsCanceling(true);
 
     try {
       // 1. Cancela o agendamento
       await cancelarAgendamentoUseCase.executar({
         agendamentoId: agendamentoParaCancelar.id,
-        motivoCancelamento,
+        motivoCancelamento: motivoCancelamento.trim() || undefined,
+        canceladoPorNome: paciente?.nomeCompleto || "Paciente"
       });
 
       // 2. Se houver remanejamento ativo para este agendamento, cancela ele também
@@ -201,7 +204,15 @@ export default function AgendamentosPage() {
         await remanejamentoRepository.atualizarStatus(solicitacaoRelacionada.id, "cancelado");
       }
 
-      toast.success("Agendamento cancelado com sucesso!");
+      toast.success("Agendamento cancelado com sucesso!", {
+        action: {
+          label: "Reagendar",
+          onClick: () => {
+            router.push(`/agendamentos/novo?reagendar=true&especialidade=${encodeURIComponent(agendamentoParaCancelar.especialidade)}&ubsId=${encodeURIComponent(agendamentoParaCancelar.ubsId)}`);
+          }
+        },
+        duration: 10000
+      });
 
       // 3. Efeito Cascata R017: A vaga cancelada agora está disponível para a fila de remanejamento!
       await verificarELiberarVaga({
@@ -289,6 +300,18 @@ export default function AgendamentosPage() {
   // Divide agendamentos em ativos (futuros/marcados/solicitados) e histórico (passados ou cancelados)
   const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado");
   const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado");
+
+  // Cômputos auxiliares de cancelamento
+  const ubsDoAgendamento = agendamentoParaCancelar 
+    ? todasUbs.find(u => u.id === agendamentoParaCancelar.ubsId)
+    : null;
+
+  const prazoLimite = ubsDoAgendamento?.prazoMinimoCancelamentoHoras;
+  const diffHoras = agendamentoParaCancelar 
+    ? calcularDiferencaHoras(agendamentoParaCancelar.data, agendamentoParaCancelar.horario)
+    : 0;
+
+  const bloqueadoPrazo = !!(agendamentoParaCancelar && prazoLimite !== undefined && diffHoras < prazoLimite);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -568,47 +591,104 @@ export default function AgendamentosPage() {
         <DialogContent className="sm:max-w-md border-border bg-card">
           <DialogHeader>
             <DialogTitle className="font-bold text-foreground text-lg">Confirmar Cancelamento</DialogTitle>
-            <DialogDescription>
-              Você está prestes a desmarcar o horário de **{agendamentoParaCancelar?.especialidade}** no dia **{agendamentoParaCancelar && formatarDataBr(agendamentoParaCancelar.data)}** às **{agendamentoParaCancelar?.horario}**.
+            <DialogDescription className="text-xs">
+              Confirme as informações abaixo antes de cancelar seu agendamento.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <label htmlFor="motivo" className="text-sm font-semibold text-foreground">
-                Motivo do Cancelamento *
-              </label>
-              <Input
-                id="motivo"
-                placeholder="Ex: Terei um compromisso no trabalho neste horário."
-                value={motivoCancelamento}
-                onChange={(e) => setMotivoCancelamento(e.target.value)}
-                disabled={isCanceling}
-                autoFocus
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Mínimo de 5 caracteres. Seu motivo ajuda a UBS no gerenciamento das filas de espera.
-              </p>
-            </div>
+          <div className="space-y-4 py-1">
+            {/* Detalhes Estruturados do Atendimento */}
+            {agendamentoParaCancelar && (
+              <div className="p-4 bg-muted/40 border border-border rounded-xl space-y-2 text-xs">
+                <div className="flex justify-between items-center pb-1 border-b border-border/50">
+                  <span className="font-semibold text-muted-foreground">Tipo de Atendimento:</span>
+                  <span className="capitalize font-bold text-foreground bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px]">
+                    {agendamentoParaCancelar.tipo}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-muted-foreground">Especialidade:</span>
+                  <span className="font-bold text-foreground">{agendamentoParaCancelar.especialidade}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-muted-foreground">Profissional:</span>
+                  <span className="font-bold text-foreground">{agendamentoParaCancelar.profissionalNome}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-muted-foreground">Data e Horário:</span>
+                  <span className="font-bold text-foreground">
+                    {formatarDataBr(agendamentoParaCancelar.data)} às {agendamentoParaCancelar.horario}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-muted-foreground">Unidade (UBS):</span>
+                  <span className="font-bold text-foreground">{agendamentoParaCancelar.ubsNome}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso de Prazo Mínimo de Cancelamento */}
+            {prazoLimite !== undefined && (
+              <div className="p-2.5 bg-muted/60 border rounded-lg flex items-center gap-2 text-[10px] text-muted-foreground">
+                <Info className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>Esta unidade de saúde exige antecedência mínima de <strong>{prazoLimite} horas</strong> para cancelamentos.</span>
+              </div>
+            )}
+
+            {/* Bloqueio de Prazo Restrito */}
+            {bloqueadoPrazo ? (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex gap-2.5 items-start">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <p className="font-bold">Cancelamento Não Permitido</p>
+                  <p className="leading-relaxed">
+                    Antecedência inferior às {prazoLimite} horas exigidas pela unidade de saúde (restam {diffHoras > 0 ? diffHoras.toFixed(1) : 0} horas).
+                  </p>
+                  <p className="leading-relaxed text-[11px] opacity-90">
+                    Entre em contato direto com a UBS para obter auxílio no cancelamento ou remanejamento.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Motivo do Cancelamento (Opcional) */
+              <div className="space-y-2">
+                <label htmlFor="motivo" className="text-xs font-bold text-foreground block">
+                  Motivo do Cancelamento (opcional)
+                </label>
+                <Input
+                  id="motivo"
+                  placeholder="Ex: Terei um compromisso neste horário."
+                  value={motivoCancelamento}
+                  onChange={(e) => setMotivoCancelamento(e.target.value)}
+                  disabled={isCanceling}
+                  autoFocus
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Seu motivo ajuda a UBS na otimização de vagas e gestão das filas de espera.
+                </p>
+              </div>
+            )}
           </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 border-t pt-3.5">
             <Button
               variant="outline"
               onClick={() => setAgendamentoParaCancelar(null)}
               disabled={isCanceling}
-              className="cursor-pointer"
+              className="cursor-pointer text-xs"
             >
-              Voltar
+              {bloqueadoPrazo ? "Fechar" : "Voltar"}
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmCancel}
-              disabled={isCanceling || motivoCancelamento.trim().length < 5}
-              className="cursor-pointer font-semibold"
-            >
-              {isCanceling ? "Cancelando..." : "Confirmar Cancelamento"}
-            </Button>
+            {!bloqueadoPrazo && (
+              <Button
+                variant="destructive"
+                onClick={handleConfirmCancel}
+                disabled={isCanceling}
+                className="cursor-pointer font-bold text-xs"
+              >
+                {isCanceling ? "Cancelando..." : "Confirmar Cancelamento"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
