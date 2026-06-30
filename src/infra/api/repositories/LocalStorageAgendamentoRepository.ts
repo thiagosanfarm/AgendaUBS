@@ -123,6 +123,8 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
       observacaoHist = "Documentação complementar enviada. Retornado à fila de triagem.";
     } else if (status === "reagendado") {
       observacaoHist = motivoCancelamento || "Solicitação reagendada pelo paciente.";
+    } else if (status === "ausente") {
+      observacaoHist = observacaoRegulacao || "Registro de ausência do paciente no horário agendado.";
     }
 
     const historicoAtual = agendamentos[index].historicoStatus || [];

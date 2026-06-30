@@ -34,11 +34,15 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { LocalStoragePacienteRepository } from "@/infra/api/repositories/LocalStoragePacienteRepository";
 import { toast } from "sonner";
 
 const agendamentoRepository = new LocalStorageAgendamentoRepository();
 const remanejamentoRepository = new LocalStorageSolicitacaoRemanejamentoRepository();
 const ubsRepository = new MockUbsRepository();
+const pacienteRepository = new LocalStoragePacienteRepository();
 
 export default function PainelPage() {
   const { paciente, profissional, tipoUsuario } = useAuth();
@@ -49,6 +53,11 @@ export default function PainelPage() {
   
   // Estados para dados de Profissional
   const [agendaProfissional, setAgendaProfissional] = useState<Agendamento[]>([]);
+  
+  // Estados para ausência de paciente R032
+  const [agendamentoAusencia, setAgendamentoAusencia] = useState<Agendamento | null>(null);
+  const [observacaoAusencia, setObservacaoAusencia] = useState("");
+  const [isRegistrandoAusencia, setIsRegistrandoAusencia] = useState(false);
   
   // Estados para dados de Administrador
   const [todosAgendamentosUbs, setTodosAgendamentosUbs] = useState<Agendamento[]>([]);
@@ -246,6 +255,76 @@ export default function PainelPage() {
     }
   };
 
+  const handleConfirmarAusencia = async () => {
+    if (!agendamentoAusencia) return;
+
+    if (agendamentoAusencia.status === "realizado" || agendamentoAusencia.status === "cancelado") {
+      toast.error("Não é possível registrar ausência para um atendimento já finalizado ou cancelado.");
+      return;
+    }
+
+    setIsRegistrandoAusencia(true);
+    try {
+      const profNome = profissional ? profissional.nome : "Profissional de Saúde";
+      const obs = observacaoAusencia.trim() || "Paciente não compareceu ao atendimento agendado.";
+
+      // 1. Atualiza status no repositório (com log de quem registrou e justificativa)
+      await agendamentoRepository.atualizarStatus(
+        agendamentoAusencia.id,
+        "ausente",
+        undefined,
+        profNome,
+        obs
+      );
+
+      // 2. Busca paciente para notificar
+      const pac = await pacienteRepository.obterPorId(agendamentoAusencia.pacienteId);
+      if (pac) {
+        // Notificação interna (Alerta local no painel do cidadão)
+        const notificacoesSalvas = localStorage.getItem("agendaubs_notificacoes");
+        const listaNotif = notificacoesSalvas ? JSON.parse(notificacoesSalvas) : [];
+        const novaNotif = {
+          id: `notif-ausencia-${Date.now()}`,
+          pacienteId: pac.id,
+          mensagem: `Aviso de Não Comparecimento: Registramos sua ausência na consulta de ${agendamentoAusencia.especialidade} agendada para ${formatarDataBr(agendamentoAusencia.data)} às ${agendamentoAusencia.horario} na unidade ${agendamentoAusencia.ubsNome}.`,
+          dataCriacao: new Date().toISOString(),
+          lida: false
+        };
+        listaNotif.push(novaNotif);
+        localStorage.setItem("agendaubs_notificacoes", JSON.stringify(listaNotif));
+
+        // Envia notificação por WhatsApp caso o paciente tenha ativado as notificações em seu perfil
+        if (pac.preferenciaWhatsApp !== false) {
+          const agora = new Date();
+          const dataAtual = agora.toISOString().split("T")[0];
+          const horaAtual = agora.toTimeString().split(" ")[0].slice(0, 5);
+          
+          await agendamentoRepository.atualizarLembreteWhatsApp(agendamentoAusencia.id, {
+            enviado: true,
+            dataEnvio: dataAtual,
+            horarioEnvio: horaAtual,
+            statusEntrega: "entregue",
+            confirmadoPaciente: false
+          });
+        }
+      }
+
+      toast.success("Ausência registrada com sucesso!");
+      setAgendamentoAusencia(null);
+      setObservacaoAusencia("");
+
+      // Recarrega a agenda
+      if (profissional) {
+        const lista = await agendamentoRepository.listarPorProfissional(profissional.id);
+        setAgendaProfissional(lista);
+      }
+    } catch (err) {
+      toast.error("Erro ao registrar ausência do paciente.");
+    } finally {
+      setIsRegistrandoAusencia(false);
+    }
+  };
+
   const ubsAdmin = todasUbs.find(u => u.id === paciente?.ubsId);
 
   // -------------------------------------------------------------
@@ -253,6 +332,15 @@ export default function PainelPage() {
   // -------------------------------------------------------------
   if (tipoUsuario === "profissional" && profissional) {
     const isAcs = profissional.especialidade === "Agente Comunitário de Saúde";
+    
+    // Cálculos de Absenteísmo R032
+    const totalAgendados = agendaProfissional.filter(a => a.status === "agendado").length;
+    const totalRealizados = agendaProfissional.filter(a => a.status === "realizado").length;
+    const totalAusentes = agendaProfissional.filter(a => a.status === "ausente").length;
+    const totalConcluidosEFaltas = totalRealizados + totalAusentes;
+    const taxaAbsenteismo = totalConcluidosEFaltas > 0 
+      ? ((totalAusentes / totalConcluidosEFaltas) * 100).toFixed(1) 
+      : "0.0";
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -341,6 +429,47 @@ export default function PainelPage() {
           </div>
         </section>
 
+        {/* Indicadores de Absenteísmo R032 */}
+        {!isAcs && (
+          <section className="space-y-3">
+            <h3 className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+              Indicadores da Agenda & Absenteísmo
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="border-border shadow-2xs">
+                <CardContent className="p-4 flex flex-col justify-between h-20">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">Agendados Hoje</span>
+                  <span className="text-xl font-black text-foreground block">{totalAgendados}</span>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border shadow-2xs">
+                <CardContent className="p-4 flex flex-col justify-between h-20">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">Concluídos</span>
+                  <span className="text-xl font-black text-emerald-600 block">{totalRealizados}</span>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border shadow-2xs">
+                <CardContent className="p-4 flex flex-col justify-between h-20">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">Ausentes (Faltas)</span>
+                  <span className="text-xl font-black text-red-500 block">{totalAusentes}</span>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border shadow-2xs">
+                <CardContent className="p-4 flex flex-col justify-between h-20">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">Taxa Absenteísmo</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-amber-500 block">{taxaAbsenteismo}%</span>
+                    <span className="text-[8px] text-muted-foreground font-semibold">de faltas</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        )}
+
         {/* Agenda de Atendimentos */}
         <section className="space-y-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -388,6 +517,7 @@ export default function PainelPage() {
                               item.status === "em_analise" ? "bg-blue-50 text-blue-600 border border-blue-200 animate-pulse" :
                               item.status === "agendado" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
                               item.status === "realizado" ? "bg-emerald-100 text-emerald-700 border border-emerald-200" :
+                              item.status === "ausente" ? "bg-red-100 text-red-700 border border-red-200 font-extrabold" :
                               item.status === "aguardando_documentacao" ? "bg-red-50 text-red-600 border border-red-200 animate-pulse" :
                               item.status === "reagendado" ? "bg-purple-50 text-purple-600 border border-purple-200" :
                               "bg-destructive/10 text-destructive border border-destructive/20"
@@ -397,6 +527,7 @@ export default function PainelPage() {
                                item.status === "aguardando_documentacao" ? "doc. pendente" : 
                                item.status === "reagendado" ? "reagendada" : 
                                item.status === "agendado" ? "aprovada" : 
+                               item.status === "ausente" ? "ausente" :
                                item.status}
                             </span>
                           </td>
@@ -410,6 +541,14 @@ export default function PainelPage() {
                                   className="h-7 text-[10px] font-bold text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
                                 >
                                   Concluir
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setAgendamentoAusencia(item)}
+                                  className="h-7 text-[10px] font-bold text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
+                                >
+                                  Ausência
                                 </Button>
                                 <Button
                                   size="sm"
@@ -447,6 +586,70 @@ export default function PainelPage() {
             </CardContent>
           </Card>
         </section>
+
+        {/* Dialog de Justificativa de Ausência R032 */}
+        <Dialog open={!!agendamentoAusencia} onOpenChange={() => setAgendamentoAusencia(null)}>
+          <DialogContent className="sm:max-w-md border-border bg-card">
+            <DialogHeader>
+              <DialogTitle className="font-bold text-foreground text-lg flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+                Registrar Ausência do Paciente
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-1">
+                Ao registrar, o status do agendamento mudará para **Ausente**. Essa consulta não poderá mais ser dada como concluída ou cancelada.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3 text-xs text-foreground">
+              {agendamentoAusencia && (
+                <div className="bg-muted/30 border border-border p-3.5 rounded-xl space-y-1.5 leading-relaxed">
+                  <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Dados do Agendamento</span>
+                  <span className="block font-semibold">Paciente Cód: {agendamentoAusencia.pacienteId}</span>
+                  <span className="block">Especialidade: **{agendamentoAusencia.especialidade}**</span>
+                  <span className="block">Data/Hora: **{formatarDataBr(agendamentoAusencia.data)}** às **{agendamentoAusencia.horario}**</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label htmlFor="observacaoAusencia" className="text-xs font-semibold text-foreground">
+                  Justificativa / Observações da Falta
+                </label>
+                <Textarea
+                  id="observacaoAusencia"
+                  value={observacaoAusencia}
+                  onChange={(e) => setObservacaoAusencia(e.target.value)}
+                  placeholder="Escreva detalhes adicionais, se houver (ex: Paciente tentou contato para desmarcar após o prazo, ou não compareceu sem justificativa)."
+                  className="min-h-24 resize-none border border-input rounded-xl focus-visible:ring-1 focus-visible:ring-ring text-xs p-3"
+                  maxLength={500}
+                />
+                <span className="text-[10px] text-muted-foreground block text-right">
+                  {observacaoAusencia.length}/500 caracteres
+                </span>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAgendamentoAusencia(null);
+                  setObservacaoAusencia("");
+                }}
+                disabled={isRegistrandoAusencia}
+                className="cursor-pointer text-xs h-10 rounded-xl"
+              >
+                Voltar
+              </Button>
+              <Button
+                onClick={handleConfirmarAusencia}
+                disabled={isRegistrandoAusencia}
+                className="cursor-pointer font-bold text-xs h-10 rounded-xl bg-amber-600 hover:bg-amber-700 text-white border-0"
+              >
+                {isRegistrandoAusencia ? "Salvando..." : "Confirmar Ausência"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }

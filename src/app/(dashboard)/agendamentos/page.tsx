@@ -704,6 +704,7 @@ export default function AgendamentosPage() {
                   const isRealizado = a.status === "realizado";
                   const isCancelado = a.status === "cancelado";
                   const isReagendado = a.status === "reagendado";
+                  const isAusente = a.status === "ausente";
 
                   return (
                     <div key={a.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-muted/10 transition-colors">
@@ -712,6 +713,7 @@ export default function AgendamentosPage() {
                           {isRealizado && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
                           {isCancelado && <XCircle className="h-5 w-5 text-destructive" />}
                           {isReagendado && <CalendarDays className="h-5 w-5 text-blue-500" />}
+                          {isAusente && <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />}
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -726,11 +728,14 @@ export default function AgendamentosPage() {
                                 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" 
                                 : isReagendado
                                   ? "bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400"
-                                  : "bg-destructive/10 text-destructive"
+                                  : isAusente
+                                    ? "bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400"
+                                    : "bg-destructive/10 text-destructive"
                             }`}>
                               {a.status === "cancelado" ? (a.decisaoRegulacao === "rejeitado" ? "rejeitada" : "cancelada") : 
                                a.status === "reagendado" ? "reagendada" : 
-                               a.status === "realizado" ? "atendida" : a.status}
+                               a.status === "realizado" ? "atendida" : 
+                               a.status === "ausente" ? "ausente" : a.status}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
