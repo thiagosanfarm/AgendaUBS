@@ -20,4 +20,6 @@ export interface Paciente {
   dataCriacao: string;
   papel?: 'paciente' | 'administrador';
   ubsId?: string; // ID da UBS vinculada (para administradores/gestores)
+  preferenciaWhatsApp?: boolean;
+  antecedenciaWhatsAppDias?: number;
 }

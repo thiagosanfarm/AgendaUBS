@@ -58,4 +58,14 @@ export interface Agendamento {
   reguladorResponsavelComplementar?: string;
   // Histórico completo de status R022
   historicoStatus?: HistoricoStatusAgendamento[];
+  // Lembrete WhatsApp R027
+  lembreteWhatsApp?: {
+    enviado: boolean;
+    dataEnvio?: string; // YYYY-MM-DD
+    horarioEnvio?: string; // HH:MM
+    statusEntrega?: 'entregue' | 'falha';
+    motivoErro?: string;
+    confirmadoPaciente?: boolean;
+    dataConfirmacao?: string;
+  };
 }

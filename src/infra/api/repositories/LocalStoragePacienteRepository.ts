@@ -4,7 +4,7 @@ import { IPacienteRepository } from "@/core/domain/repositories/IPacienteReposit
 const LOCAL_STORAGE_KEY = "agendaubs_pacientes";
 
 export class LocalStoragePacienteRepository implements IPacienteRepository {
-  private obterTodos(): Paciente[] {
+  obterTodos(): Paciente[] {
     if (typeof window === "undefined") return [];
     
     const resetKey = "agendaubs_pacientes_reset_v3";
@@ -68,7 +68,7 @@ export class LocalStoragePacienteRepository implements IPacienteRepository {
     return dados ? JSON.parse(dados) : [];
   }
 
-  private salvarTodos(pacientes: Paciente[]): void {
+  salvarTodos(pacientes: Paciente[]): void {
     if (typeof window === "undefined") return;
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pacientes));
   }

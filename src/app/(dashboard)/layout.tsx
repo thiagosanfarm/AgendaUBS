@@ -7,6 +7,10 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Activity } from "lucide-react";
+import { LocalStorageAgendamentoRepository } from "@/infra/api/repositories/LocalStorageAgendamentoRepository";
+import { LocalStoragePacienteRepository } from "@/infra/api/repositories/LocalStoragePacienteRepository";
+import { verificarEEnviarLembretes } from "@/utils/whatsapp-reminder-helper";
+import { toast } from "sonner";
 
 export default function DashboardLayout({
   children,
@@ -36,6 +40,33 @@ export default function DashboardLayout({
       router.replace("/login");
     }
   }, [autenticado, loading, router]);
+
+  // Rotina automática de varredura e envio de lembretes via WhatsApp R027
+  useEffect(() => {
+    if (autenticado && typeof window !== "undefined") {
+      const executarLembretes = async () => {
+        const repoAgendamentos = new LocalStorageAgendamentoRepository();
+        const repoPacientes = new LocalStoragePacienteRepository();
+        
+        try {
+          const agendamentos = repoAgendamentos.obterTodos();
+          const pacientes = await repoPacientes.listarTodos();
+          
+          const { enviados, novosAgendamentos } = await verificarEEnviarLembretes(agendamentos, pacientes);
+          
+          if (enviados > 0) {
+            repoAgendamentos.salvarTodos(novosAgendamentos);
+            toast.success(`${enviados} lembrete(s) automático(s) de consulta enviado(s) via WhatsApp!`);
+          }
+        } catch (err) {
+          console.error("Erro na rotina de envio de lembretes WhatsApp:", err);
+        }
+      };
+      
+      const timer = setTimeout(executarLembretes, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [autenticado]);
 
   if (loading || !autenticado) {
     return (

@@ -15,7 +15,8 @@ import {
   Clipboard,
   MapPin,
   CalendarCheck,
-  FileCheck
+  FileCheck,
+  MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,11 @@ export function Sidebar({ className }: SidebarProps) {
       label: "Regulação de Vagas",
       href: "/painel/regulacao",
       icon: FileCheck,
+    });
+    menuItems.push({
+      label: "Mensagens & Lembretes",
+      href: "/painel/mensageria",
+      icon: MessageSquare,
     });
   }
 

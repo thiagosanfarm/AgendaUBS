@@ -31,7 +31,11 @@ import {
   FileText,
   Paperclip,
   Activity,
-  CalendarDays
+  CalendarDays,
+  MessageSquare,
+  Smartphone,
+  Send,
+  CheckCheck
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,6 +88,7 @@ export default function AgendamentosPage() {
   const [tempDocumentos, setTempDocumentos] = useState<DocumentoAgendamento[]>([]);
   const [isSavingDocumentos, setIsSavingDocumentos] = useState(false);
   const [historicoStatusExpandido, setHistoricoStatusExpandido] = useState<Record<string, boolean>>({});
+  const [whatsappAberto, setWhatsappAberto] = useState(false);
 
   const handleOpenDocumentosModal = (agendamento: Agendamento) => {
     setAgendamentoParaDocumentos(agendamento);
@@ -299,6 +304,55 @@ export default function AgendamentosPage() {
       carregarAgendamentos();
     } catch (err) {
       toast.error("Não foi possível cancelar o remanejamento.");
+    }
+  };
+
+  const handleConfirmarPresencaWhatsApp = async (agendamentoId: string) => {
+    try {
+      const a = agendamentos.find(item => item.id === agendamentoId);
+      if (!a) return;
+
+      const lembreteAtual = a.lembreteWhatsApp || { enviado: true };
+      const lembreteAtualizado = {
+        ...lembreteAtual,
+        confirmadoPaciente: true,
+        dataConfirmacao: new Date().toISOString().split("T")[0]
+      };
+
+      const agora = new Date();
+      const dataAtual = agora.toISOString().split("T")[0];
+      const horarioAtual = agora.toTimeString().split(" ")[0].slice(0, 5);
+      const historicoAtual = a.historicoStatus || [];
+      const novoHistorico = [
+        ...historicoAtual,
+        {
+          status: a.status,
+          data: dataAtual,
+          horario: horarioAtual,
+          usuarioNome: "Paciente (WhatsApp)",
+          observacao: "Paciente confirmou presença respondendo ao lembrete do WhatsApp."
+        }
+      ];
+
+      const agendamentoAtualizado = {
+        ...a,
+        lembreteWhatsApp: lembreteAtualizado,
+        historicoStatus: novoHistorico
+      };
+
+      await agendamentoRepository.atualizarLembreteWhatsApp(agendamentoId, lembreteAtualizado);
+      
+      const todosAgendamentos = agendamentoRepository.obterTodos();
+      const idx = todosAgendamentos.findIndex(x => x.id === agendamentoId);
+      if (idx !== -1) {
+        todosAgendamentos[idx] = agendamentoAtualizado;
+        agendamentoRepository.salvarTodos(todosAgendamentos);
+      }
+
+      toast.success("Presença confirmada com sucesso via WhatsApp!");
+      carregarAgendamentos();
+    } catch (err) {
+      toast.error("Erro ao confirmar presença.");
     }
   };
 
@@ -1059,6 +1113,169 @@ export default function AgendamentosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Botão Flutuante do WhatsApp Simulado R027 */}
+      <button
+        onClick={() => setWhatsappAberto(true)}
+        className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-full p-4 shadow-xl flex items-center justify-center gap-2 hover:scale-105 transition-all duration-200 cursor-pointer border-0 outline-none group"
+        title="Simulador de WhatsApp do Paciente"
+      >
+        <div className="relative">
+          <MessageSquare className="h-6 w-6 text-white" />
+          {agendamentos.some(a => a.lembreteWhatsApp?.enviado && !a.lembreteWhatsApp?.confirmadoPaciente) && (
+            <span className="absolute -top-1.5 -right-1.5 h-3 w-3 bg-red-500 rounded-full border border-white animate-pulse" />
+          )}
+        </div>
+        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold text-xs">
+          WhatsApp Simulado
+        </span>
+      </button>
+
+      {/* Painel do Smartphone Simulado overlay */}
+      {whatsappAberto && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            className="bg-[#0b141a] w-full max-w-sm rounded-[36px] overflow-hidden border-8 border-[#2d3134] shadow-2xl relative flex flex-col aspect-[9/18]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Notch do Smartphone */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-5 bg-[#2d3134] rounded-b-xl z-20 flex items-center justify-center">
+              <span className="w-12 h-1 bg-black/50 rounded-full" />
+            </div>
+
+            {/* Cabeçalho do Smartphone */}
+            <div className="h-8 bg-[#1f2c34] text-[10px] text-zinc-400 px-6 pt-1.5 flex justify-between items-center font-bold">
+              <span>19:25</span>
+              <div className="flex items-center gap-1.5">
+                <Smartphone className="h-3 w-3" />
+                <span>5G</span>
+              </div>
+            </div>
+
+            {/* Cabeçalho do WhatsApp */}
+            <div className="bg-[#1f2c34] p-3 flex items-center gap-3 border-b border-[#2a3942]">
+              <button 
+                onClick={() => setWhatsappAberto(false)}
+                className="text-[#8696a0] hover:text-white cursor-pointer text-xs font-bold bg-transparent border-0 outline-none"
+              >
+                Voltar
+              </button>
+              <div className="h-9 w-9 rounded-full bg-[#00a884] text-white flex items-center justify-center font-black text-xs">
+                MS
+              </div>
+              <div className="leading-tight flex-1">
+                <h4 className="font-bold text-sm text-[#e9edef]">Ministério da Saúde</h4>
+                <span className="text-[10px] text-[#8696a0]">Online • Conta Comercial</span>
+              </div>
+            </div>
+
+            {/* Corpo do Chat com Fundo de WhatsApp */}
+            <div 
+              className="flex-1 p-4 overflow-y-auto space-y-4 flex flex-col justify-end"
+              style={{
+                backgroundImage: `url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")`,
+                backgroundBlendMode: "overlay",
+                backgroundColor: "#0b141a"
+              }}
+            >
+              {/* Balão informativa de segurança */}
+              <div className="self-center bg-[#182229] border border-[#2a3942] text-[#8696a0] text-[9px] px-3 py-1.5 rounded-lg text-center max-w-[240px] uppercase font-bold tracking-wider leading-relaxed shadow-sm">
+                🔒 As mensagens e chamadas são protegidas com criptografia de ponta a ponta.
+              </div>
+
+              {/* Listar lembretes enviados */}
+              {(() => {
+                const lembretes = agendamentos.filter(a => a.lembreteWhatsApp?.enviado);
+                if (lembretes.length === 0) {
+                  return (
+                    <div className="self-center bg-[#1f2c34] text-[#8696a0] text-xs px-4 py-3 rounded-2xl text-center max-w-[240px] shadow-md border border-[#2a3942]">
+                      Nenhum lembrete recebido ainda.
+                      <p className="text-[9px] mt-1 text-muted-foreground leading-normal">
+                        Lembretes automáticos são enviados 1 ou 2 dias antes da consulta, conforme configurado no perfil.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4 max-h-[340px] overflow-y-auto pr-1">
+                    {lembretes.map((a) => {
+                      const dataBr = a.data.split("-").reverse().join("/");
+                      const confirmado = a.lembreteWhatsApp?.confirmadoPaciente;
+                      
+                      return (
+                        <div key={a.id} className="self-end ml-auto bg-[#202c33] text-[#e9edef] rounded-2xl p-3.5 max-w-[280px] shadow-md border border-[#2a3942] text-xs space-y-3">
+                          <p className="leading-relaxed whitespace-pre-wrap">
+                            Olá, *{paciente?.nomeCompleto}*! Lembrete da sua consulta agendada:
+                            {"\n\n"}
+                            🩺 *Serviço:* {a.tipo === "consulta" ? "Consulta Médica" : "Exame Clínico"}
+                            {"\n"}
+                            📋 *Especialidade:* {a.especialidade}
+                            {"\n"}
+                            📅 *Data:* {dataBr}
+                            {"\n"}
+                            🕒 *Horário:* {a.horario}
+                            {"\n"}
+                            🏢 *Local:* {a.ubsNome}
+                            {"\n\n"}
+                            Por favor, responda se irá comparecer:
+                          </p>
+
+                          {/* Botões do Balão do WhatsApp */}
+                          <div className="flex flex-col gap-2 pt-1 border-t border-[#2a3942]">
+                            {confirmado ? (
+                              <div className="flex items-center justify-center gap-1.5 bg-[#00a884]/20 border border-[#00a884]/40 text-[#00e676] py-2 px-3 rounded-xl font-bold text-center text-[11px]">
+                                <CheckCheck className="h-4 w-4" />
+                                Presença Confirmada
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={() => handleConfirmarPresencaWhatsApp(a.id)}
+                                  className="bg-[#00a884] hover:bg-[#00c99e] text-white font-extrabold py-2 px-1 rounded-xl text-center text-[10px] cursor-pointer border-0 outline-none flex items-center justify-center gap-1 transition-all"
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setWhatsappAberto(false);
+                                    router.push(`/agendamentos/novo?reagendar=true&originalId=${a.id}&especialidade=${encodeURIComponent(a.especialidade)}&ubsId=${encodeURIComponent(a.ubsId)}`);
+                                  }}
+                                  className="bg-[#2a3942] hover:bg-[#3d525f] text-white font-extrabold py-2 px-1 rounded-xl text-center text-[10px] cursor-pointer border-0 outline-none flex items-center justify-center gap-1 transition-all"
+                                >
+                                  Reagendar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Hora do Balão */}
+                          <div className="text-right text-[9px] text-[#8696a0] flex items-center justify-end gap-1 -mt-1.5">
+                            <span>{a.lembreteWhatsApp?.horarioEnvio || "19:25"}</span>
+                            {a.lembreteWhatsApp?.statusEntrega === "entregue" && (
+                              <CheckCheck className={`h-3 w-3 ${confirmado ? "text-[#53bdeb]" : "text-[#8696a0]"}`} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Input Fake de Envio de WhatsApp */}
+            <div className="bg-[#1f2c34] p-2.5 flex items-center gap-2 border-t border-[#2a3942]">
+              <div className="flex-1 bg-[#2a3942] rounded-full px-4 py-2 text-xs text-[#8696a0] select-none">
+                Responda nos botões acima...
+              </div>
+              <div className="h-9 w-9 rounded-full bg-[#00a884] text-white flex items-center justify-center shadow-md">
+                <Send className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,18 @@ export interface IAgendamentoRepository {
     prazoEnvioDocumentacao?: string
   ): Promise<Agendamento>;
   atualizarDocumentos(id: string, documentos: DocumentoAgendamento[]): Promise<Agendamento>;
+  atualizarLembreteWhatsApp(
+    id: string,
+    lembrete: {
+      enviado: boolean;
+      dataEnvio?: string;
+      horarioEnvio?: string;
+      statusEntrega?: 'entregue' | 'falha';
+      motivoErro?: string;
+      confirmadoPaciente?: boolean;
+      dataConfirmacao?: string;
+    }
+  ): Promise<Agendamento>;
   obterHorariosDisponiveis(ubsId: string, profissionalId: string, data: string): Promise<string[]>;
   listarTodos(): Promise<Agendamento[]>;
   listarPorProfissional(profissionalId: string): Promise<Agendamento[]>;

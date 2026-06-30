@@ -10,13 +10,13 @@ const HORARIOS_PADRAO = [
 ];
 
 export class LocalStorageAgendamentoRepository implements IAgendamentoRepository {
-  private obterTodos(): Agendamento[] {
+  obterTodos(): Agendamento[] {
     if (typeof window === "undefined") return [];
     const dados = localStorage.getItem(LOCAL_STORAGE_KEY);
     return dados ? JSON.parse(dados) : [];
   }
 
-  private salvarTodos(agendamentos: Agendamento[]): void {
+  salvarTodos(agendamentos: Agendamento[]): void {
     if (typeof window === "undefined") return;
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(agendamentos));
   }
@@ -246,5 +246,34 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
         const dataB = new Date(`${b.data}T${b.horario}:00`);
         return dataA.getTime() - dataB.getTime(); // Ordem cronológica dos atendimentos
       });
+  }
+
+  async atualizarLembreteWhatsApp(
+    id: string,
+    lembrete: {
+      enviado: boolean;
+      dataEnvio?: string;
+      horarioEnvio?: string;
+      statusEntrega?: 'entregue' | 'falha';
+      motivoErro?: string;
+      confirmadoPaciente?: boolean;
+      dataConfirmacao?: string;
+    }
+  ): Promise<Agendamento> {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const agendamentos = this.obterTodos();
+    const index = agendamentos.findIndex(a => a.id === id);
+    if (index === -1) {
+      throw new Error("Agendamento não encontrado.");
+    }
+    
+    const agendamentoAtualizado = {
+      ...agendamentos[index],
+      lembreteWhatsApp: lembrete
+    };
+    
+    agendamentos[index] = agendamentoAtualizado;
+    this.salvarTodos(agendamentos);
+    return agendamentoAtualizado;
   }
 }

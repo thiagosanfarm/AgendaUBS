@@ -31,6 +31,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const pacienteRepository = new LocalStoragePacienteRepository();
 const ubsRepository = new MockUbsRepository();
@@ -50,6 +51,8 @@ export default function PerfilPage() {
   const [bairro, setBairro] = useState("");
   const [cidade, setCidade] = useState("");
   const [uf, setUf] = useState("");
+  const [preferenciaWhatsApp, setPreferenciaWhatsApp] = useState(true);
+  const [antecedenciaWhatsAppDias, setAntecedenciaWhatsAppDias] = useState(1);
 
   // Estados do Matcher de UBS e Solicitações R008
   const [todasUbs, setTodasUbs] = useState<UBS[]>([]);
@@ -71,6 +74,8 @@ export default function PerfilPage() {
       setBairro(paciente.endereco.bairro);
       setCidade(paciente.endereco.cidade);
       setUf(paciente.endereco.uf);
+      setPreferenciaWhatsApp(paciente.preferenciaWhatsApp !== false);
+      setAntecedenciaWhatsAppDias(paciente.antecedenciaWhatsAppDias || 1);
 
       // Carrega UBSs
       ubsRepository.listarTodas().then((ubss) => {
@@ -194,7 +199,9 @@ export default function PerfilPage() {
         const pacienteAtualizado = {
           ...paciente,
           telefone: telefone.replace(/\D/g, ""),
-          email: email.trim().toLowerCase()
+          email: email.trim().toLowerCase(),
+          preferenciaWhatsApp,
+          antecedenciaWhatsAppDias
         };
         await pacienteRepository.salvar(pacienteAtualizado);
 
@@ -215,6 +222,8 @@ export default function PerfilPage() {
         telefone: telefone.replace(/\D/g, ""),
         email: email.trim().toLowerCase(),
         ubsId: novoUbsId || undefined,
+        preferenciaWhatsApp,
+        antecedenciaWhatsAppDias,
         endereco: {
           cep,
           logradouro,
@@ -535,6 +544,54 @@ export default function PerfilPage() {
                 </div>
               </div>
 
+              {/* Seção de Preferências de WhatsApp R027 */}
+              <div className="pt-6 border-t border-border space-y-4">
+                <h4 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Bell className="h-4 w-4 text-primary" />
+                  Notificações & Lembretes por WhatsApp
+                </h4>
+                
+                <div className="flex items-center justify-between gap-4 p-4 rounded-xl border bg-muted/5">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-foreground block">Lembretes Automáticos</span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Receber mensagens com dados da consulta/exame no número de WhatsApp cadastrado.
+                    </span>
+                  </div>
+                  <Checkbox
+                    id="prefWhatsApp"
+                    checked={preferenciaWhatsApp}
+                    onCheckedChange={(checked) => {
+                      if (isEditing) setPreferenciaWhatsApp(!!checked);
+                    }}
+                    disabled={!isEditing || isSaving}
+                    className="h-5 w-5 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {preferenciaWhatsApp && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
+                    <div className="space-y-2">
+                      <label htmlFor="antecedencia" className="text-xs font-semibold text-foreground flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        Antecedência de Envio (dias)
+                      </label>
+                      <select
+                        id="antecedencia"
+                        value={antecedenciaWhatsAppDias}
+                        onChange={(e) => setAntecedenciaWhatsAppDias(Number(e.target.value))}
+                        disabled={!isEditing || isSaving}
+                        className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-xs shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1.5 focus-visible:ring-ring"
+                      >
+                        <option value={1}>1 dia antes da consulta</option>
+                        <option value={2}>2 dias antes da consulta</option>
+                        <option value={3}>3 dias antes da consulta</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Botões de Ação ao Editar */}
               {isEditing && (
                 <div className="flex justify-end gap-3 pt-4 border-t border-border animate-in fade-in duration-150">
@@ -552,6 +609,8 @@ export default function PerfilPage() {
                       setBairro(paciente.endereco.bairro);
                       setCidade(paciente.endereco.cidade);
                       setUf(paciente.endereco.uf);
+                      setPreferenciaWhatsApp(paciente.preferenciaWhatsApp !== false);
+                      setAntecedenciaWhatsAppDias(paciente.antecedenciaWhatsAppDias || 1);
                     }}
                     disabled={isSaving}
                     className="gap-1.5 font-semibold cursor-pointer"
