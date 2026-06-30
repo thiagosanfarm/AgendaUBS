@@ -1,4 +1,4 @@
-export type StatusAgendamento = 'solicitado' | 'agendado' | 'cancelado' | 'realizado' | 'ausente' | 'aguardando_documentacao';
+export type StatusAgendamento = 'solicitado' | 'em_analise' | 'agendado' | 'cancelado' | 'realizado' | 'ausente' | 'aguardando_documentacao' | 'reagendado';
 export type TipoAgendamento = 'consulta' | 'exame';
 export type PrioridadeAgendamento = 'normal' | 'preferencial' | 'urgente';
 
@@ -13,6 +13,14 @@ export interface DocumentoAgendamento {
   horarioEnvio: string; // HH:MM
   usuarioEnvioNome: string;
   autorizadoDownload?: boolean;
+}
+
+export interface HistoricoStatusAgendamento {
+  status: StatusAgendamento;
+  data: string; // YYYY-MM-DD
+  horario: string; // HH:MM
+  usuarioNome: string;
+  observacao?: string;
 }
 
 export interface Agendamento {
@@ -48,4 +56,6 @@ export interface Agendamento {
   dataSolicitacaoComplementar?: string;
   horarioSolicitacaoComplementar?: string;
   reguladorResponsavelComplementar?: string;
+  // Histórico completo de status R022
+  historicoStatus?: HistoricoStatusAgendamento[];
 }

@@ -29,7 +29,9 @@ import {
   UploadCloud,
   Trash2,
   FileText,
-  Paperclip
+  Paperclip,
+  Activity,
+  CalendarDays
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +83,7 @@ export default function AgendamentosPage() {
   const [agendamentoParaDocumentos, setAgendamentoParaDocumentos] = useState<Agendamento | null>(null);
   const [tempDocumentos, setTempDocumentos] = useState<DocumentoAgendamento[]>([]);
   const [isSavingDocumentos, setIsSavingDocumentos] = useState(false);
+  const [historicoStatusExpandido, setHistoricoStatusExpandido] = useState<Record<string, boolean>>({});
 
   const handleOpenDocumentosModal = (agendamento: Agendamento) => {
     setAgendamentoParaDocumentos(agendamento);
@@ -218,7 +221,7 @@ export default function AgendamentosPage() {
         action: {
           label: "Reagendar",
           onClick: () => {
-            router.push(`/agendamentos/novo?reagendar=true&especialidade=${encodeURIComponent(agendamentoParaCancelar.especialidade)}&ubsId=${encodeURIComponent(agendamentoParaCancelar.ubsId)}`);
+            router.push(`/agendamentos/novo?reagendar=true&originalId=${agendamentoParaCancelar.id}&especialidade=${encodeURIComponent(agendamentoParaCancelar.especialidade)}&ubsId=${encodeURIComponent(agendamentoParaCancelar.ubsId)}`);
           }
         },
         duration: 10000
@@ -307,9 +310,9 @@ export default function AgendamentosPage() {
     }
   };
 
-  // Divide agendamentos em ativos (futuros/marcados/solicitados/pendentes de documentos) e histórico (passados ou cancelados)
-  const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao");
-  const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado" && a.status !== "aguardando_documentacao");
+  // Divide agendamentos em ativos (futuros/marcados/solicitados/em análise/pendentes de documentos) e histórico (passados ou cancelados)
+  const ativos = agendamentos.filter(a => a.status === "agendado" || a.status === "solicitado" || a.status === "em_analise" || a.status === "aguardando_documentacao");
+  const historico = agendamentos.filter(a => a.status !== "agendado" && a.status !== "solicitado" && a.status !== "em_analise" && a.status !== "aguardando_documentacao");
 
   // Cômputos auxiliares de cancelamento
   const ubsDoAgendamento = agendamentoParaCancelar 
@@ -353,12 +356,14 @@ export default function AgendamentosPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {ativos.map((a) => {
               const isSolicitado = a.status === "solicitado";
+              const isEmAnalise = a.status === "em_analise";
               const isAguardandoDoc = a.status === "aguardando_documentacao";
               return (
                 <Card
                   key={a.id}
                   className={`border-l-4 shadow-sm hover:shadow-md transition-shadow ${
                     isAguardandoDoc ? "border-l-red-500 bg-red-500/[0.01]" :
+                    isEmAnalise ? "border-l-blue-500 bg-blue-500/[0.01]" :
                     isSolicitado ? "border-l-amber-500 bg-amber-500/[0.01]" : "border-l-blue-500"
                   }`}
                 >
@@ -372,6 +377,10 @@ export default function AgendamentosPage() {
                           {isAguardandoDoc ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-red-500/10 text-red-600 border border-red-500/20 uppercase tracking-wide shrink-0 animate-pulse">
                               Ação Necessária: Doc. Pendente
+                            </span>
+                          ) : isEmAnalise ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-500/10 text-blue-600 border border-blue-500/20 uppercase tracking-wide shrink-0 animate-pulse">
+                              Em Análise
                             </span>
                           ) : isSolicitado ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-600 border border-amber-500/20 uppercase tracking-wide shrink-0">
@@ -502,6 +511,64 @@ export default function AgendamentosPage() {
                         return null;
                       }
                     })()}
+
+                    {/* Linha do Tempo de Status R022 */}
+                    {a.historicoStatus && a.historicoStatus.length > 0 && (
+                      <div className="mt-4 pt-3.5 border-t border-dashed space-y-2">
+                        <button
+                          onClick={() => setHistoricoStatusExpandido(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                          className="flex items-center justify-between w-full text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 outline-none"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Activity className="h-3.5 w-3.5 text-primary" />
+                            Histórico de Status ({a.historicoStatus.length})
+                          </span>
+                          <span className="text-[10px] text-primary font-bold">
+                            {historicoStatusExpandido[a.id] ? "Ocultar Detalhes" : "Ver Linha do Tempo"}
+                          </span>
+                        </button>
+
+                        {historicoStatusExpandido[a.id] && (
+                          <div className="relative border-l border-muted pl-4 ml-2 space-y-4 pt-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {a.historicoStatus.map((h, hIdx) => {
+                              const isLast = hIdx === (a.historicoStatus?.length || 0) - 1;
+                              const statusLabels: Record<string, string> = {
+                                solicitado: "Pendente (Fila de Triagem)",
+                                em_analise: "Em Análise",
+                                agendado: "Aprovada & Confirmada",
+                                cancelado: "Cancelada ou Recusada",
+                                realizado: "Atendido",
+                                ausente: "Ausente",
+                                aguardando_documentacao: "Aguardando Documentação",
+                                reagendado: "Reagendada"
+                              };
+
+                              return (
+                                <div key={hIdx} className="relative text-xs">
+                                  <span className={`absolute -left-6.5 top-1 rounded-full h-3 w-3 border-2 border-background ${
+                                    isLast ? "bg-primary animate-pulse" : "bg-muted-foreground/30"
+                                  }`} />
+                                  <div className="flex justify-between items-center text-[10px] text-muted-foreground flex-wrap gap-1">
+                                    <span className="font-bold text-foreground">
+                                      {statusLabels[h.status] || h.status}
+                                    </span>
+                                    <span>{formatarDataBr(h.data)} às {h.horario}</span>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Por: <strong>{h.usuarioNome}</strong>
+                                  </p>
+                                  {h.observacao && (
+                                    <p className="text-[11px] bg-muted/40 border border-dashed rounded-lg p-2.5 mt-1.5 italic text-muted-foreground">
+                                      "{h.observacao}"
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
  
                     <div className="border-t border-border mt-5 pt-4 flex justify-between items-center gap-2 flex-wrap">
                       <div>
@@ -582,6 +649,7 @@ export default function AgendamentosPage() {
                 {historico.map((a) => {
                   const isRealizado = a.status === "realizado";
                   const isCancelado = a.status === "cancelado";
+                  const isReagendado = a.status === "reagendado";
 
                   return (
                     <div key={a.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-muted/10 transition-colors">
@@ -589,6 +657,7 @@ export default function AgendamentosPage() {
                         <div className="mt-1">
                           {isRealizado && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
                           {isCancelado && <XCircle className="h-5 w-5 text-destructive" />}
+                          {isReagendado && <CalendarDays className="h-5 w-5 text-blue-500" />}
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -601,9 +670,13 @@ export default function AgendamentosPage() {
                             <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full capitalize ${
                               isRealizado 
                                 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400" 
-                                : "bg-destructive/10 text-destructive"
+                                : isReagendado
+                                  ? "bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400"
+                                  : "bg-destructive/10 text-destructive"
                             }`}>
-                              {a.status}
+                              {a.status === "cancelado" ? (a.decisaoRegulacao === "rejeitado" ? "rejeitada" : "cancelada") : 
+                               a.status === "reagendado" ? "reagendada" : 
+                               a.status === "realizado" ? "atendida" : a.status}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -614,6 +687,41 @@ export default function AgendamentosPage() {
                               <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                               <span>Motivo: {a.motivoCancelamento}</span>
                             </p>
+                          )}
+                          
+                          {/* Histórico timeline compacta R022 */}
+                          {a.historicoStatus && a.historicoStatus.length > 0 && (
+                            <div className="mt-2 text-xs">
+                              <button
+                                onClick={() => setHistoricoStatusExpandido(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                                className="text-[10px] text-primary hover:underline font-semibold cursor-pointer bg-transparent border-0 outline-none p-0 mt-1.5"
+                              >
+                                {historicoStatusExpandido[a.id] ? "Ocultar Histórico" : "Exibir Histórico de Alterações"}
+                              </button>
+                              
+                              {historicoStatusExpandido[a.id] && (
+                                <div className="border-l pl-3 ml-1.5 space-y-2 mt-2 pt-1.5 animate-in fade-in duration-200">
+                                  {a.historicoStatus.map((h, hIdx) => {
+                                    const statusLabels: Record<string, string> = {
+                                      solicitado: "Pendente",
+                                      em_analise: "Em Análise",
+                                      agendado: "Aprovada",
+                                      cancelado: "Cancelada/Recusada",
+                                      realizado: "Atendido",
+                                      ausente: "Ausente",
+                                      aguardando_documentacao: "Aguardando Documentação",
+                                      reagendado: "Reagendada"
+                                    };
+                                    return (
+                                      <div key={hIdx} className="text-[10px] text-muted-foreground leading-tight">
+                                        <strong>{statusLabels[h.status] || h.status}</strong> em {formatarDataBr(h.data)} {h.horario} por {h.usuarioNome}
+                                        {h.observacao && <span className="block text-[9px] italic text-muted-foreground/85 mt-0.5 font-medium">"{h.observacao}"</span>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>

@@ -248,6 +248,21 @@ export default function NovoAgendamentoPage() {
       });
 
       toast.success("Agendamento realizado com sucesso!");
+
+      const params = new URLSearchParams(window.location.search);
+      const originalId = params.get("originalId");
+      if (originalId) {
+        try {
+          await agendamentoRepository.atualizarStatus(
+            originalId,
+            "reagendado",
+            `Paciente reagendou este compromisso para a nova data (${formatarDataBr(dataSel)} às ${horarioSel}).`
+          );
+        } catch (statusErr) {
+          console.error("Erro ao atualizar status do agendamento anterior para reagendado:", statusErr);
+        }
+      }
+
       setConfirmacaoAberta(false);
       router.push("/agendamentos");
     } catch (err: any) {

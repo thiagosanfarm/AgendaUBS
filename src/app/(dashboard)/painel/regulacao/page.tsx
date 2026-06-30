@@ -190,7 +190,7 @@ export default function RegulacaoVagasPage() {
     }
   }, [simUbs, simEspecialidade]);
 
-  const pendentes = agendamentos.filter((a) => a.status === "solicitado");
+  const pendentes = agendamentos.filter((a) => a.status === "solicitado" || a.status === "em_analise");
   const concluidos = agendamentos.filter((a) => a.decisaoRegulacao !== undefined);
   const aguardandoDocumentacao = agendamentos.filter((a) => a.status === "aguardando_documentacao");
 
@@ -211,6 +211,30 @@ export default function RegulacaoVagasPage() {
       carregarDados();
     } catch (err) {
       toast.error("Erro ao recusar o agendamento.");
+    }
+  };
+
+  const handleAbrirAnalise = async (item: Agendamento, preDecisao: 'aprovar' | 'rejeitar' | null = null) => {
+    setDecisaoSel(preDecisao);
+    setObservacoesAnalise("");
+    
+    if (item.status === 'solicitado') {
+      try {
+        const atualizado = await agendamentoRepository.atualizarStatus(
+          item.id,
+          'em_analise',
+          undefined,
+          reguladorNome,
+          "Regulador iniciou a análise da solicitação e dos documentos."
+        );
+        setSolicitacaoDetalhada(atualizado);
+        carregarDados();
+      } catch (err) {
+        setSolicitacaoDetalhada(item);
+        toast.error("Erro ao atualizar status para análise.");
+      }
+    } else {
+      setSolicitacaoDetalhada(item);
     }
   };
 
@@ -577,6 +601,15 @@ export default function RegulacaoVagasPage() {
                                       {isUrgente && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />}
                                       {item.prioridade || "normal"}
                                     </span>
+
+                                    {/* Badge do Status R022 */}
+                                    <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                      item.status === 'em_analise'
+                                        ? "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                                        : "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                    }`}>
+                                      {item.status === 'em_analise' ? "Em Análise" : "Pendente"}
+                                    </span>
                                   </div>
                                   <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
                                     <Calendar className="h-3.5 w-3.5" />
@@ -679,11 +712,7 @@ export default function RegulacaoVagasPage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => {
-                                      setSolicitacaoDetalhada(item);
-                                      setDecisaoSel(null);
-                                      setObservacoesAnalise("");
-                                    }}
+                                    onClick={() => handleAbrirAnalise(item)}
                                     className="h-8 text-xs font-bold text-primary border-primary/20 hover:bg-primary/5 cursor-pointer gap-1.5"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
@@ -694,11 +723,7 @@ export default function RegulacaoVagasPage() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => {
-                                        setSolicitacaoDetalhada(item);
-                                        setDecisaoSel('rejeitar');
-                                        setObservacoesAnalise("");
-                                      }}
+                                      onClick={() => handleAbrirAnalise(item, 'rejeitar')}
                                       className="h-8 text-xs font-semibold text-destructive border-destructive/20 hover:bg-destructive/10 cursor-pointer gap-1"
                                     >
                                       <X className="h-3.5 w-3.5" />
@@ -706,11 +731,7 @@ export default function RegulacaoVagasPage() {
                                     </Button>
                                     <Button
                                       size="sm"
-                                      onClick={() => {
-                                        setSolicitacaoDetalhada(item);
-                                        setDecisaoSel('aprovar');
-                                        setObservacoesAnalise("");
-                                      }}
+                                      onClick={() => handleAbrirAnalise(item, 'aprovar')}
                                       className="h-8 text-xs font-semibold cursor-pointer gap-1"
                                     >
                                       <Check className="h-3.5 w-3.5" />
@@ -1278,11 +1299,13 @@ export default function RegulacaoVagasPage() {
                           {historico.map((hDoc) => {
                             const statusTraduzido = {
                               solicitado: "Aguardando Regulação",
+                              em_analise: "Em Análise",
                               agendado: "Agendado",
                               cancelado: "Cancelado",
                               realizado: "Atendido",
                               ausente: "Falta/Ausente",
-                              aguardando_documentacao: "Aguardando Documentação"
+                              aguardando_documentacao: "Aguardando Documentação",
+                              reagendado: "Reagendada"
                             }[hDoc.status] || hDoc.status;
 
                             return (
@@ -1315,6 +1338,58 @@ export default function RegulacaoVagasPage() {
                         <div className="p-3 text-center text-muted-foreground text-[11px]">
                           Este paciente não possui outras solicitações no histórico.
                         </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Histórico de Status da Solicitação Atual R022 */}
+                  <div className="space-y-2 pt-1">
+                    <span className="block text-[10px] uppercase font-bold text-primary tracking-wider">
+                      Histórico de Transições de Status desta Solicitação
+                    </span>
+                    <div className="border rounded-xl bg-card p-4 space-y-3.5 max-h-48 overflow-y-auto">
+                      {solicitacaoDetalhada.historicoStatus && solicitacaoDetalhada.historicoStatus.length > 0 ? (
+                        <div className="relative border-l border-muted pl-4 ml-2 space-y-4">
+                          {solicitacaoDetalhada.historicoStatus.map((h, hIdx) => {
+                            const isLast = hIdx === (solicitacaoDetalhada.historicoStatus?.length || 0) - 1;
+                            const statusLabels: Record<string, string> = {
+                              solicitado: "Pendente (Fila de Triagem)",
+                              em_analise: "Em Análise",
+                              agendado: "Aprovada & Confirmada",
+                              cancelado: "Recusada / Cancelada",
+                              realizado: "Atendido",
+                              ausente: "Ausente",
+                              aguardando_documentacao: "Aguardando Documentação",
+                              reagendado: "Reagendada"
+                            };
+
+                            return (
+                              <div key={hIdx} className="relative text-xs">
+                                <span className={`absolute -left-6.5 top-1 rounded-full h-3 w-3 border-2 border-background ${
+                                  isLast ? "bg-primary animate-pulse" : "bg-muted-foreground/35"
+                                }`} />
+                                <div className="flex justify-between items-center text-[10px] text-muted-foreground flex-wrap gap-1">
+                                  <span className="font-semibold text-foreground">
+                                    {statusLabels[h.status] || h.status}
+                                  </span>
+                                  <span>{formatarDataBr(h.data)} às {h.horario}</span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-tight mt-1">
+                                  Responsável: <strong className="text-foreground">{h.usuarioNome}</strong>
+                                </p>
+                                {h.observacao && (
+                                  <p className="text-[11px] bg-muted/30 border border-dashed rounded-lg p-2 mt-1.5 italic text-muted-foreground">
+                                    "{h.observacao}"
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground block text-center italic py-2">
+                          Nenhum histórico registrado para esta solicitação.
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1444,6 +1519,10 @@ export default function RegulacaoVagasPage() {
                       }
                       if (decisaoSel === 'solicitar_doc' && !docSolicitadoDesc.trim()) {
                         toast.error("Por favor, descreva detalhadamente quais documentos são necessários.");
+                        return;
+                      }
+                      if (decisaoSel === 'aprovar' && solicitacaoDetalhada.status !== 'em_analise') {
+                        toast.error("Não é permitido aprovar uma solicitação sem análise prévia.");
                         return;
                       }
 

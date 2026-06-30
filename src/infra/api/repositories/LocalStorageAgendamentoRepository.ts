@@ -59,11 +59,24 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     await new Promise((resolve) => setTimeout(resolve, 400));
     const agendamentos = this.obterTodos();
 
+    const agora = new Date();
+    const dataAtual = agora.toISOString().split("T")[0];
+    const horarioAtual = agora.toTimeString().split(" ")[0].slice(0, 5);
+
     const novoAgendamento: Agendamento = {
       ...agendamento,
       id: `agendamento-${Math.random().toString(36).substring(2, 9)}`,
       status: "solicitado",
-      dataCriacao: new Date().toISOString()
+      dataCriacao: agora.toISOString(),
+      historicoStatus: [
+        {
+          status: "solicitado",
+          data: dataAtual,
+          horario: horarioAtual,
+          usuarioNome: "Paciente (Solicitante)",
+          observacao: "Solicitação de agendamento criada e enviada para triagem."
+        }
+      ]
     };
 
     agendamentos.push(novoAgendamento);
@@ -94,9 +107,40 @@ export class LocalStorageAgendamentoRepository implements IAgendamentoRepository
     const dataAtual = agora.toISOString().split("T")[0];
     const horarioAtual = agora.toTimeString().split(" ")[0].slice(0, 5);
 
+    // Mapeamento de responsável e observação para o histórico
+    const usuarioNome = canceladoPorNome || reguladorNome || (status === "solicitado" ? "Paciente (Solicitante)" : status === "reagendado" ? "Paciente (Solicitante)" : "Regulação Central");
+    
+    let observacaoHist = "Alteração de status do processo.";
+    if (status === "em_analise") {
+      observacaoHist = observacaoRegulacao || "Início da triagem dos documentos anexados.";
+    } else if (status === "agendado") {
+      observacaoHist = observacaoRegulacao || "Solicitação de agendamento homologada e vaga confirmada.";
+    } else if (status === "cancelado") {
+      observacaoHist = motivoCancelamento || observacaoRegulacao || "Solicitação cancelada ou recusada.";
+    } else if (status === "aguardando_documentacao") {
+      observacaoHist = `Solicitada documentação complementar: "${motivoSolicitacaoComplementar}"`;
+    } else if (status === "solicitado") {
+      observacaoHist = "Documentação complementar enviada. Retornado à fila de triagem.";
+    } else if (status === "reagendado") {
+      observacaoHist = motivoCancelamento || "Solicitação reagendada pelo paciente.";
+    }
+
+    const historicoAtual = agendamentos[index].historicoStatus || [];
+    const novoHistorico = [
+      ...historicoAtual,
+      {
+        status,
+        data: dataAtual,
+        horario: horarioAtual,
+        usuarioNome,
+        observacao: observacaoHist
+      }
+    ];
+
     const agendamentoAtualizado = {
       ...agendamentos[index],
       status,
+      historicoStatus: novoHistorico,
       motivoCancelamento: motivoCancelamento || agendamentos[index].motivoCancelamento,
       ...(reguladorNome ? {
         reguladorNome,

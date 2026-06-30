@@ -103,9 +103,9 @@ export default function PainelPage() {
       agendamentoRepository
         .listarPorPaciente(paciente.id)
         .then((lista) => {
-          // Inclui agendamentos ativos que estejam agendados, solicitados ou aguardando documentação
+          // Inclui agendamentos ativos que estejam agendados, solicitados, em análise ou aguardando documentação
           const ativos = lista
-            .filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao")
+            .filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "em_analise" || a.status === "aguardando_documentacao")
             .sort((a, b) => {
               const dataA = new Date(`${a.data}T${a.horario}:00`);
               const dataB = new Date(`${b.data}T${b.horario}:00`);
@@ -164,7 +164,7 @@ export default function PainelPage() {
           toast.warning("O prazo de resposta da vaga de remanejamento expirou.");
           if (paciente) {
             agendamentoRepository.listarPorPaciente(paciente.id).then((lista) => {
-              const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao");
+              const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "em_analise" || a.status === "aguardando_documentacao");
               setProximoAgendamento(ativos.length > 0 ? ativos[0] : null);
               setAgendamentosRecentes(lista.slice(0, 3));
             });
@@ -190,7 +190,7 @@ export default function PainelPage() {
       // Recarrega todos os dados
       if (paciente) {
         const lista = await agendamentoRepository.listarPorPaciente(paciente.id);
-        const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "aguardando_documentacao");
+        const ativos = lista.filter((a) => a.status === "agendado" || a.status === "solicitado" || a.status === "em_analise" || a.status === "aguardando_documentacao");
         setProximoAgendamento(ativos.length > 0 ? ativos[0] : null);
         setAgendamentosRecentes(lista.slice(0, 3));
       }
@@ -385,13 +385,18 @@ export default function PainelPage() {
                           <td className="py-3.5 px-2">
                             <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
                               item.status === "solicitado" ? "bg-amber-50 text-amber-600 border border-amber-200" :
-                              item.status === "agendado" ? "bg-blue-50 text-blue-600 border border-blue-200" :
-                              item.status === "realizado" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
+                              item.status === "em_analise" ? "bg-blue-50 text-blue-600 border border-blue-200 animate-pulse" :
+                              item.status === "agendado" ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
+                              item.status === "realizado" ? "bg-emerald-100 text-emerald-700 border border-emerald-200" :
                               item.status === "aguardando_documentacao" ? "bg-red-50 text-red-600 border border-red-200 animate-pulse" :
+                              item.status === "reagendado" ? "bg-purple-50 text-purple-600 border border-purple-200" :
                               "bg-destructive/10 text-destructive border border-destructive/20"
                             }`}>
                               {item.status === "solicitado" ? "pendente" : 
+                               item.status === "em_analise" ? "em análise" : 
                                item.status === "aguardando_documentacao" ? "doc. pendente" : 
+                               item.status === "reagendado" ? "reagendada" : 
+                               item.status === "agendado" ? "aprovada" : 
                                item.status}
                             </span>
                           </td>
@@ -417,6 +422,8 @@ export default function PainelPage() {
                               </div>
                             ) : item.status === "solicitado" ? (
                               <span className="text-[10px] text-amber-600 font-semibold italic">Aguardando Regulação</span>
+                            ) : item.status === "em_analise" ? (
+                              <span className="text-[10px] text-blue-600 font-semibold italic">Em Análise Técnica</span>
                             ) : item.status === "aguardando_documentacao" ? (
                               <span className="text-[10px] text-red-600 font-semibold italic">Documentação Pendente</span>
                             ) : (
@@ -590,11 +597,16 @@ export default function PainelPage() {
                         <div className="flex items-center gap-2">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
                             item.status === "solicitado" ? "bg-amber-500/10 text-amber-600" : 
-                            item.status === "aguardando_documentacao" ? "bg-red-500/10 text-red-600 border border-red-500/20" : 
+                            item.status === "em_analise" ? "bg-blue-500/10 text-blue-600 border border-blue-200 animate-pulse" : 
+                            item.status === "aguardando_documentacao" ? "bg-red-500/10 text-red-600 border border-red-500/20 animate-pulse" : 
+                            item.status === "reagendado" ? "bg-purple-500/10 text-purple-600 border border-purple-200" : 
                             "bg-emerald-500/10 text-emerald-600"
                           }`}>
                             {item.status === "solicitado" ? "pendente" : 
+                             item.status === "em_analise" ? "em análise" : 
                              item.status === "aguardando_documentacao" ? "doc. pendente" : 
+                             item.status === "reagendado" ? "reagendada" : 
+                             item.status === "agendado" ? "aprovada" : 
                              item.status}
                           </span>
                           <span className="text-xs font-bold text-foreground">
