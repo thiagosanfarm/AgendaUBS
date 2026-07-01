@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ titulo }: HeaderProps) {
-  const { logout, paciente } = useAuth();
+  const { logout, paciente, profissional } = useAuth();
 
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6 sticky top-0 z-40 select-none">
@@ -30,9 +30,9 @@ export function Header({ titulo }: HeaderProps) {
         <ThemeToggle />
 
         <div className="hidden md:flex flex-col text-right">
-          <span className="text-xs text-muted-foreground font-medium">Paciente logado</span>
+          <span className="text-xs text-muted-foreground font-medium"> usuário logado</span>
           <span className="text-sm font-semibold text-foreground -mt-0.5">
-            {paciente?.nomeCompleto?.split(" ")[0] || "Usuário"}
+            {paciente?.nomeCompleto?.split(" ")[0] || profissional?.nomeCompleto?.split(" ")[0] || "Usuário"}
           </span>
         </div>
 

@@ -25,7 +25,7 @@ export default function DashboardLayout({
   // Define dinamicamente o título do Header com base no caminho
   useEffect(() => {
     if (pathname.startsWith("/painel")) {
-      setTitulo("Painel do Paciente");
+      setTitulo("Painel");
     } else if (pathname.startsWith("/agendamentos/novo")) {
       setTitulo("Novo Agendamento");
     } else if (pathname.startsWith("/agendamentos")) {
@@ -47,13 +47,13 @@ export default function DashboardLayout({
       const executarLembretes = async () => {
         const repoAgendamentos = new LocalStorageAgendamentoRepository();
         const repoPacientes = new LocalStoragePacienteRepository();
-        
+
         try {
           const agendamentos = repoAgendamentos.obterTodos();
           const pacientes = await repoPacientes.listarTodos();
-          
+
           const { enviados, novosAgendamentos } = await verificarEEnviarLembretes(agendamentos, pacientes);
-          
+
           if (enviados > 0) {
             repoAgendamentos.salvarTodos(novosAgendamentos);
             toast.success(`${enviados} lembrete(s) automático(s) de consulta enviado(s) via WhatsApp!`);
@@ -62,7 +62,7 @@ export default function DashboardLayout({
           console.error("Erro na rotina de envio de lembretes WhatsApp:", err);
         }
       };
-      
+
       const timer = setTimeout(executarLembretes, 1500);
       return () => clearTimeout(timer);
     }
